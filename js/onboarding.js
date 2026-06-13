@@ -132,7 +132,7 @@
 
 (function() {
     var PLEDGE_KEY = 'splashPledgeSigned_v3';
-    var TOTAL = 6;
+    var TOTAL = 7;
     var PLEDGE_TEXT = '我绝不盈利、造谣、污蔑或嘲讽，并对自己的使用行为负完全责任';
     var cur = 0;
 
@@ -195,12 +195,14 @@
         if (nextBtn) {
             nextBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
+                console.log('[splash] next clicked, cur=', cur, 'TOTAL=', TOTAL);
                 if (cur < TOTAL - 1) goTo(cur + 1);
             });
         }
         if (enterBtn) {
             enterBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
+                console.log('[splash] enterBtn clicked, ready=', enterBtn.classList.contains('ready'));
                 if (enterBtn.classList.contains('ready')) enterSite();
             });
         }
@@ -208,6 +210,7 @@
             pledgeInp.addEventListener('input', function() {
                 var val = pledgeInp.value;
                 var hint = document.getElementById('splash-pledge-hint');
+                console.log('[splash] pledge input:', val, 'match=', val === PLEDGE_TEXT);
                 if (val === PLEDGE_TEXT) {
                     pledgeInp.classList.add('correct');
                     if (hint) { hint.textContent = '✓ 承诺已确认，可以进入了'; hint.className = 'splash-pledge-hint ok'; }
