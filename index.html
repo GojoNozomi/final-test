@@ -2721,7 +2721,7 @@
             <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;opacity:0.75;line-height:1.5;">
                 支持图片及 GIF 动图。点击 <i class="fas fa-plus" style="font-size:10px;"></i> 添加，点击项目应用。
             </div>
-            <div class="bg-gallery" id="background-gallery-list"></div>
+            <div class="bg-gallery" id="background-gallery-list" onclick="localStorage.removeItem('custom_chat_bg_url_saved'); if(document.getElementById('custom-chat-bg-url'))document.getElementById('custom-chat-bg-url').value='';"></div>
             
             <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border-color, #ebebeb);">
                 <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 5px;">高清图床直链通道</label>
@@ -2733,7 +2733,7 @@
                             localStorage.setItem('custom_chat_bg_url_saved', url);
                             document.body.style.setProperty('--chat-bg-image', 'url(' + url + ')');
                             document.body.classList.add('with-background');
-                            alert('图片换好了哟，老婆大人～♡'); /* 👑 老婆专属定制宠溺弹窗文案 */
+                            alert('背景换好了哦，老婆大人🥰～♡');
                         } else { alert('请先粘贴网址直链捏！'); }
                     ">应用</button>
                 </div>
@@ -2744,17 +2744,11 @@
                 <div style="display: flex; gap: 8px;">
                     <button type="button" id="bg-style-cover-btn" class="modal-btn modal-btn-primary" style="flex: 1; font-size: 12px; padding: 6px 0; cursor: pointer;" onclick="
                         localStorage.setItem('chat_bg_fit_mode', 'cover');
-                        document.body.classList.remove('bg-fit-contain');
-                        document.body.classList.add('bg-fit-cover');
-                        document.getElementById('bg-style-cover-btn').className = 'modal-btn modal-btn-primary';
-                        document.getElementById('bg-style-contain-btn').className = 'modal-btn modal-btn-secondary';
+                        window._applyChatBgFit('cover');
                     ">✂️ 铺满全屏 (看中间)</button>
                     <button type="button" id="bg-style-contain-btn" class="modal-btn modal-btn-secondary" style="flex: 1; font-size: 12px; padding: 6px 0; cursor: pointer;" onclick="
                         localStorage.setItem('chat_bg_fit_mode', 'contain');
-                        document.body.classList.remove('bg-fit-cover');
-                        document.body.classList.add('bg-fit-contain');
-                        document.getElementById('bg-style-cover-btn').className = 'modal-btn modal-btn-secondary';
-                        document.getElementById('bg-style-contain-btn').className = 'modal-btn modal-btn-primary';
+                        window._applyChatBgFit('contain');
                     ">📸 完整显现 (不切边)</button>
                 </div>
             </div>
@@ -2766,7 +2760,7 @@
                     if(document.getElementById('custom-chat-bg-url')) document.getElementById('custom-chat-bg-url').value = '';
                     document.body.style.removeProperty('--chat-bg-image');
                     document.body.classList.remove('with-background', 'bg-fit-cover', 'bg-fit-contain');
-                    alert('已恢复默认背景 ✓');
+                    alert('背景打扫干净啦，老婆大人😚～♡');
                 ">
                     <i class="fas fa-undo"></i> 恢复默认背景
                 </button>
@@ -2775,18 +2769,10 @@
     </div>
 
     <script>
-        // 💫 双端独立记忆：每次开门自动还原老婆锁定的直链网址与缩放模式
-        setInterval(() => {
-            const savedChatBg = localStorage.getItem('custom_chat_bg_url_saved');
-            const fitMode = localStorage.getItem('chat_bg_fit_mode') || 'cover';
-            if (savedChatBg) {
-                if (document.getElementById('custom-chat-bg-url') && !document.getElementById('custom-chat-bg-url').value) {
-                    document.getElementById('custom-chat-bg-url').value = savedChatBg;
-                }
-                document.body.style.setProperty('--chat-bg-image', 'url(' + savedChatBg + ')');
-                document.body.classList.add('with-background');
-            }
-            if (fitMode === 'contain') {
+        // 🛠️ 性能大超进化：砸碎每秒刷新3次的复读机，改为高情商单次渲染内核
+        window._applyChatBgFit = function(mode) {
+            const m = mode || localStorage.getItem('chat_bg_fit_mode') || 'cover';
+            if (m === 'contain') {
                 document.body.classList.add('bg-fit-contain');
                 document.body.classList.remove('bg-fit-cover');
                 if(document.getElementById('bg-style-contain-btn')) document.getElementById('bg-style-contain-btn').className = 'modal-btn modal-btn-primary';
@@ -2797,8 +2783,29 @@
                 if(document.getElementById('bg-style-cover-btn')) document.getElementById('bg-style-cover-btn').className = 'modal-btn modal-btn-primary';
                 if(document.getElementById('bg-style-contain-btn')) document.getElementById('bg-style-contain-btn').className = 'modal-btn modal-btn-secondary';
             }
-        }, 300);
+        };
+
+        // 🏡 只在开门进站时智能加载【单次】，后续绝不偷跑手机电量
+        setTimeout(() => {
+            const savedChatBg = localStorage.getItem('custom_chat_bg_url_saved');
+            if (savedChatBg) {
+                if (document.getElementById('custom-chat-bg-url')) document.getElementById('custom-chat-bg-url').value = savedChatBg;
+                document.body.style.setProperty('--chat-bg-image', 'url(' + savedChatBg + ')');
+                document.body.classList.add('with-background');
+            }
+            window._applyChatBgFit();
+
+            // 🥷 监控 milk 老师的原生本地加号：只要你一传当地图，立刻自动给直链腾位置，实现先来后到
+            const localUploadInput = document.getElementById('bg-gallery-input');
+            if(localUploadInput) {
+                localUploadInput.addEventListener('change', () => {
+                    localStorage.removeItem('custom_chat_bg_url_saved');
+                    if(document.getElementById('custom-chat-bg-url')) document.getElementById('custom-chat-bg-url').value = '';
+                });
+            }
+        }, 600);
     </script>
+
     
     <div id="appearance-panel-bubble" class="appearance-sub-panel" style="display:none;">
         <div class="settings-section">
