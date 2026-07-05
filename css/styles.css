@@ -11343,25 +11343,27 @@ body[data-avatar-pos="custom"] .message-avatar {
 }
 
 /* ===================================================
-   👑 希宝黄金控边：页面背景 + 卡片背景 纯净自适应完整显现补丁
+   👑 双端联动：双模式切换动态渲染总指挥部样式补丁
    =================================================== */
 body, body::before {
     background-repeat: no-repeat !important;
-    background-attachment: fixed !important;
+    background-attachment: fixed !important; /* 锁死视差，彻底封杀手机键盘弹起时图片被挤扁的世纪Bug！ */
 }
 
-/* 🖥️ 电脑端大宽屏：让长条手机图完整显现，绝不裁剪 */
+/* ✂️ 模式一状态：【铺满全屏 (cover)】 宁可切边，绝不留一丝空白 */
+body.bg-fit-cover, body.bg-fit-cover::before {
+    background-size: cover !important;
+    background-position: center center !important;
+}
 @media screen and (min-width: 1025px) {
-    body, body::before {
-        background-size: contain !important;     /* 📸 变身：等比例缩放，保证整张图100%完整看得到 */
-        background-position: center center !important; /* 🎯 居中：死死钉在屏幕正中央 */
+    /* 当检测到是【电脑端大宽屏】且开启铺满时 */
+    body.bg-fit-cover, body.bg-fit-cover::before {
+        background-position: center 20% !important; /* 电脑端自动把大背景视角往上拉提 20%，确保老公完美露脸 */
     }
 }
 
-/* 📱 手机端窄竖屏：本身就契合比例，直接完美铺满 */
-@media screen and (max-width: 768px) {
-    body, body::before {
-        background-size: cover !important; 
-        background-position: center center !important;
-    }
+/* 📸 模式二状态：【完整显现 (contain)】 宁可留白，也必须100%看清照片全貌 */
+body.bg-fit-contain, body.bg-fit-contain::before {
+    background-size: contain !important;
+    background-position: center center !important;
 }
