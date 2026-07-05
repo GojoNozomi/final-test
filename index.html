@@ -3357,40 +3357,42 @@
                             </div>
                         </div>
                     </div>
+
                     <p class="cs-group-label" style="margin-top:16px;">📞 视频通话音效配置</p>
 <div class="cs-card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; background: var(--card-bg, rgba(255,255,255,0.05)); border-radius: 16px; border: 1px solid var(--border-color, rgba(255,255,255,0.1)); color: var(--text-primary, #fff);">
     
     <div style="position: relative;">
         <label style="font-size: 12px; color: var(--text-secondary, rgba(255,255,255,0.6)); display: block; margin-bottom: 6px; font-weight: 500;">我收到的来电铃声 (对方打来)</label>
         <div style="display: flex; gap: 6px; align-items: center;">
-            <input type="text" id="incoming-call-url" style="flex: 1; padding: 7px 10px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); border-radius: 8px; font-size: 12.5px; background: var(--input-bg, rgba(0,0,0,0.2)); color: #fff;" placeholder="请粘贴音频直链或点击右侧上传" oninput="localStorage.setItem('custom_incoming_url', this.value)">
-            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 10px; cursor: pointer; height: 32px; display: flex; align-items: center; justify-content: center;" onclick="document.getElementById('incoming-file-hidden').click()">📤</button>
-            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="const u=document.getElementById('incoming-call-url').value; if(u){ const a=new Audio(u); a.play().catch(e=>alert('浏览器拦截了试听，请先随意点击一下网页屏幕再试听捏！')); }else{ alert('请先输入直链或上传音频文件喵！'); }">试听</button>
+            <input type="text" id="incoming-call-url" style="flex: 1; padding: 7px 10px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); border-radius: 8px; font-size: 12.5px; background: var(--input-bg, rgba(0,0,0,0.2)); color: #fff;" placeholder="请粘贴音频直链...">
+            
+            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="localStorage.setItem('custom_incoming_url', document.getElementById('incoming-call-url').value); alert('来电铃声已锁定保存 ✓');">锁定保存</button>
+            
+            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="if(window._prevAud && !window._prevAud.paused){ window._prevAud.pause(); window._prevAud.currentTime=0; } else { const u=document.getElementById('incoming-call-url').value; if(u){ window._prevAud=new Audio(u); window._prevAud.play(); } else { alert('请先粘贴链接捏！'); } }">试听 / 停止</button>
         </div>
-        <input type="file" id="incoming-file-hidden" accept="audio/*" style="display: none;" onchange="if(this.files[0]){ const u=URL.createObjectURL(this.files[0]); document.getElementById('incoming-call-url').value=u; localStorage.setItem('custom_incoming_url', u); const t=document.getElementById('tip-inc'); t.style.display='inline'; setTimeout(()=>t.style.display='none', 2000); }">
-        <span id="tip-inc" style="display: none; font-size: 11px; color: #4caf50; position: absolute; right: 0; top: 0;">本地自动保存 ✓</span>
     </div>
 
     <div style="position: relative;">
-        <label style="font-size: 12px; color: var(--text-secondary, rgba(255, var(--text-secondary-rgb, 255,255,255), 0.6)); display: block; margin-bottom: 6px; font-weight: 500;">我发出的拨号等待音 (我呼叫对方)</label>
+        <label style="font-size: 12px; color: var(--text-secondary, rgba(255,255,255,0.6)); display: block; margin-bottom: 6px; font-weight: 500;">我发出的拨号等待音 (我呼叫对方)</label>
         <div style="display: flex; gap: 6px; align-items: center;">
-            <input type="text" id="outgoing-call-url" style="flex: 1; padding: 7px 10px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); border-radius: 8px; font-size: 12.5px; background: var(--input-bg, rgba(0,0,0,0.2)); color: #fff;" placeholder="请粘贴音频直链 or 点击右侧上传" oninput="localStorage.setItem('custom_outgoing_url', this.value)">
-            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 10px; cursor: pointer; height: 32px; display: flex; align-items: center; justify-content: center;" onclick="document.getElementById('outgoing-file-hidden').click()">📤</button>
-            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="const u=document.getElementById('outgoing-call-url').value; if(u){ const a=new Audio(u); a.play().catch(e=>alert('浏览器拦截了试听，请先随意点击一下网页屏幕再试听捏！')); }else{ alert('请先输入直链或上传音频文件喵！'); }">试听</button>
+            <input type="text" id="outgoing-call-url" style="flex: 1; padding: 7px 10px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); border-radius: 8px; font-size: 12.5px; background: var(--input-bg, rgba(0,0,0,0.2)); color: #fff;" placeholder="请粘贴音频直链...">
+            
+            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="localStorage.setItem('custom_outgoing_url', document.getElementById('outgoing-call-url').value); alert('拨号音效已锁定保存 ✓');">锁定保存</button>
+            
+            <button type="button" class="modal-btn modal-btn-secondary" style="padding: 6px 12px; cursor: pointer; height: 32px; font-size: 12px; display: flex; align-items: center; justify-content: center;" onclick="if(window._prevAud && !window._prevAud.paused){ window._prevAud.pause(); window._prevAud.currentTime=0; } else { const u=document.getElementById('outgoing-call-url').value; if(u){ window._prevAud=new Audio(u); window._prevAud.play(); } else { alert('请先粘贴链接捏！'); } }">试听 / 停止</button>
         </div>
-        <input type="file" id="outgoing-file-hidden" accept="audio/*" style="display: none;" onchange="if(this.files[0]){ const u=URL.createObjectURL(this.files[0]); document.getElementById('outgoing-call-url').value=u; localStorage.setItem('custom_outgoing_url', u); const t=document.getElementById('tip-out'); t.style.display='inline'; setTimeout(()=>t.style.display='none', 2000); }">
-        <span id="tip-out" style="display: none; font-size: 11px; color: #4caf50; position: absolute; right: 0; top: 0;">本地自动保存 ✓</span>
     </div>
 
 </div>
 
 <script>
-    // 强制前台超高速自动对齐本地口袋，保证每次开门不白板
+    // 强制前台读取本地已锁定的链接
     setTimeout(() => {
         if(document.getElementById('incoming-call-url')) document.getElementById('incoming-call-url').value = localStorage.getItem('custom_incoming_url') || '';
         if(document.getElementById('outgoing-call-url')) document.getElementById('outgoing-call-url').value = localStorage.getItem('custom_outgoing_url') || '';
     }, 150);
 </script>
+                    
                     <p class="cs-group-label" style="margin-top:16px;">挂机保活音频</p>
                     <div class="cs-card">
                         <div class="setting-pill-row" id="keepalive-audio-toggle" onclick="window._toggleKeepaliveAudio && window._toggleKeepaliveAudio()">
