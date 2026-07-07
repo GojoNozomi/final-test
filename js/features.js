@@ -2597,6 +2597,6 @@ async function importAllData(file) {
     } catch (err) {
         console.error('全量导入失败:', err);
         const msg = err && err.message ? err.message : '未知错误';
-        showNotification('导入失败：' + msg, 'error', 5000);
+        showNotification('全量导入失败：' + msg, 'error', 5000);
     }
 }
