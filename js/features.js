@@ -1,250 +1,3 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const loaderBar = document.getElementById('loader-tech-bar');
-    const welcomeSubtitle = document.querySelector('.welcome-subtitle-scramble');
-    const welcomeScreen = document.getElementById('welcome-animation');
-    const disclaimerModal = document.getElementById('disclaimer-modal');
-    const acceptDisclaimerBtn = document.getElementById('accept-disclaimer');
-
-    const updateLoader = (text, width) => {
-        if (welcomeSubtitle) welcomeSubtitle.textContent = text;
-        if (loaderBar) loaderBar.style.width = width;
-    };
-
-    const hideWelcomeScreen = () => {
-        if (!welcomeScreen) return;
-        welcomeScreen.classList.add('hidden');
-        setTimeout(() => {
-            welcomeScreen.style.display = 'none';
-            // 加载动画结束后显示主页
-            if (typeof window.showHomePage === 'function') {
-                window.showHomePage();
-            }
-        }, 800);
-    };
-
-    const safeAwait = async (promise, fallback = null) => {
-        try {
-            return await promise;
-        } catch (error) {
-            console.error('操作失败:', error);
-            return fallback;
-        }
-    };
-
-    try {
-        try { setupEventListeners?.(); } catch(e) { console.error('setupEventListeners:', e); }
-
-        if (typeof localforage === 'undefined') {
-            console.warn('LocalForage 未加载，将使用 localStorage 降级方案');
-        }
-
-        try {
-            const emergencyBackupRaw = localStorage.getItem('BACKUP_V1_critical');
-            if (emergencyBackupRaw) {
-                const emergencyBackup = JSON.parse(emergencyBackupRaw);
-                if (emergencyBackup && Array.isArray(emergencyBackup.messages) && emergencyBackup.messages.length > 0) {
-                    console.warn('[boot] 检测到紧急备份，可用于异常恢复');
-                }
-            }
-        } catch (e) {
-            console.warn('[boot] 紧急备份检查失败:', e);
-        }
-
-        updateLoader('正在建立安全连接...', '10%');
-        await safeAwait(initializeSession());
-
-        updateLoader('正在读取记忆存档...', '40%');
-        await safeAwait(loadData());
-
-        updateLoader('正在渲染我们的世界...', '70%');
-        
-        await Promise.allSettled([
-            safeAwait(initializeRandomUI?.())
-        ]);
-
-        setInterval(checkStatusChange, 60000);
-
-        if (disclaimerModal) {
-            const tourSeen = await safeAwait(localforage?.getItem(APP_PREFIX + 'tour_seen'), false);
-            
-            if (!tourSeen) {
-                showModal(disclaimerModal);
-                
-                if (acceptDisclaimerBtn && !acceptDisclaimerBtn._bound) {
-                    acceptDisclaimerBtn._bound = true;
-                    acceptDisclaimerBtn.addEventListener('click', () => {
-                        hideModal(disclaimerModal);
-                        localforage?.setItem(APP_PREFIX + 'tour_seen', true).catch(() => {});
-                        startTour?.();
-                    }, { once: true });
-                }
-            }
-        }
-
-        updateLoader('连接成功，欢迎回来。', '100%');
-        setTimeout(hideWelcomeScreen, 3500);
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                try {
-                    if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
-                } catch (e) {}
-                try { _backupCriticalData(); } catch (e) { console.warn('[visibilitychange] 紧急备份失败:', e); }
-                try {
-                    const p = saveData();
-                    if (p && typeof p.catch === 'function') {
-                        p.catch(e => console.error('[visibilitychange] 保存失败:', e));
-                    }
-                } catch (e) {
-                    console.error('[visibilitychange] 保存失败:', e);
-                }
-            } else if (document.visibilityState === 'visible') {
-                try {
-                    const backup = typeof _tryRecoverFromBackup === 'function' ? _tryRecoverFromBackup() : null;
-                    if (backup && Array.isArray(backup.messages) && backup.messages.length > 0 && Array.isArray(messages) && backup.messages.length > messages.length) {
-                        console.warn('[visibilitychange] 检测到备份消息比当前更多，自动尝试恢复');
-                        try {
-                            messages = backup.messages.map(m => ({
-                                ...m,
-                                timestamp: new Date(m.timestamp)
-                            }));
-                            if (backup.settings) Object.assign(settings, backup.settings);
-                            if (typeof updateUI === 'function') updateUI();
-                            if (typeof throttledSaveData === 'function') throttledSaveData();
-                            showNotification('已自动恢复本地临时备份内容', 'warning', 3500);
-                        } catch (restoreErr) {
-                            console.warn('[visibilitychange] 自动恢复失败，保留当前页面内容:', restoreErr);
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[visibilitychange] 恢复备份失败:', e);
-                }
-            }
-        });
-
-        window.addEventListener('pagehide', () => {
-            try { _backupCriticalData(); } catch (e) {}
-        });
-
-        window.addEventListener('beforeunload', () => {
-            try { _backupCriticalData(); } catch (e) {}
-        });
-
-        setInterval(() => {
-            saveData().catch(e => console.warn('[autoBackup] 定时保存失败:', e));
-        }, 3 * 60 * 1000);
-
-        (() => {
-            const REMIND_KEY = 'exportReminderLastShown';
-            const last = parseInt(localStorage.getItem(REMIND_KEY) || '0', 10);
-            const daysSince = (Date.now() - last) / (1000 * 60 * 60 * 24);
-            if (daysSince >= 7) {
-                setTimeout(() => {
-                    showNotification('建议定期导出备份，防止数据意外丢失', 'info', 7000);
-                    localStorage.setItem(REMIND_KEY, String(Date.now()));
-                }, 8000);
-            }
-        })();
-
-        setTimeout(async () => {
-            if ('Notification' in window && Notification.permission === 'default') {
-                try {
-                    const permission = await Notification.requestPermission();
-                    if (permission === 'granted') {
-                        showNotification('已开启系统通知，收到消息时会提醒你', 'success', 3000);
-                    }
-                } catch(e) {
-                    console.warn('通知权限请求失败:', e);
-                }
-            }
-        }, 3000);
-
-    } catch (err) {
-        console.error('严重初始化错误:', err);
-        try {
-            const backup = typeof _tryRecoverFromBackup === 'function' ? _tryRecoverFromBackup() : null;
-            if (backup && Array.isArray(backup.messages) && backup.messages.length > 0) {
-                messages = backup.messages.map(m => ({
-                    ...m,
-                    timestamp: new Date(m.timestamp)
-                }));
-                if (backup.settings) Object.assign(settings, backup.settings);
-                if (typeof updateUI === 'function') updateUI();
-                showNotification('初始化异常，已使用本地紧急备份恢复', 'warning', 5000);
-            }
-        } catch (recoverErr) {
-            console.warn('[boot] 初始化失败后的恢复也失败:', recoverErr);
-        }
-        updateLoader('加载遇到问题，已强制进入...', '100%');
-        setTimeout(hideWelcomeScreen, 3500);
-    }
-});
-
-// 🚀 改造 1：全局回复表情库暴力劫持为外链
-const stickerInput = document.getElementById('sticker-file-input');
-if (stickerInput) {
-    stickerInput.addEventListener('click', async (e) => {
-        e.preventDefault(); 
-        const url = prompt("🔗 【外链零内存模式】\n请粘贴表情包的图片直链 (URL)：\n(提示: 去微博/小红书/图床右键复制图片地址)");
-        
-        if (url && url.trim()) {
-            const cleanUrl = url.trim();
-            stickerLibrary.push(cleanUrl); 
-            window._stickerLibrary = stickerLibrary;
-            
-            try { window.dispatchEvent(new CustomEvent('stickerLibraryUpdated', { detail: { count: stickerLibrary.length } })); } catch(err) {}
-            if (typeof throttledSaveData === 'function') throttledSaveData();
-            if (typeof renderReplyLibrary === 'function') renderReplyLibrary();
-            if (typeof showNotification === 'function') showNotification('✓ 外链表情包添加成功！0 内存消耗！', 'success');
-        }
-    });
-}
-
-// 🚀 改造 2：我的表情快捷栏暴力劫持为外链
-const myStickerQuickUpload = document.getElementById('my-sticker-quick-upload');
-if (myStickerQuickUpload) {
-    myStickerQuickUpload.addEventListener('click', async (e) => {
-        e.preventDefault(); 
-        const url = prompt("🔗 【我的外链表情包】\n请粘贴图片直链 (URL)：");
-        
-        if (url && url.trim()) {
-            const cleanUrl = url.trim();
-            myStickerLibrary.push(cleanUrl);
-            
-            if (typeof throttledSaveData === 'function') throttledSaveData();
-            if (typeof renderComboContent === 'function') renderComboContent('my-sticker');
-            if (typeof showNotification === 'function') showNotification('✓ 已添加外链表情到快捷栏！', 'success');
-        }
-    });
-}
-
-window.addEventListener('load', function() {
-    setTimeout(function() {
-        try {
-            if (localStorage.getItem('dailyGreetingShown') === new Date().toDateString()) return;
-            try { if (typeof checkPartnerDailyMood === 'function') checkPartnerDailyMood(); } catch(e2) { console.warn('checkPartnerDailyMood error:', e2); }
-            if (typeof _buildDailyGreeting === 'function') _buildDailyGreeting();
-            if (window.localforage && window.APP_PREFIX) {
-                localforage.getItem(window.APP_PREFIX + 'tour_seen').then(function(seen) {
-                    if (seen) {
-                        var modal = document.getElementById('daily-greeting-modal');
-                        if (modal) modal.classList.remove('hidden');
-                        localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-                    }
-                }).catch(function() {
-                    var modal = document.getElementById('daily-greeting-modal');
-                    if (modal) modal.classList.remove('hidden');
-                    localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-                });
-            } else {
-                var modal = document.getElementById('daily-greeting-modal');
-                if (modal) modal.classList.remove('hidden');
-                localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-            }
-        } catch(e) { console.warn('Daily greeting timing error:', e); }
-    }, 4500);
-}, { once: true });
-
 (function() {
     var MY_SYM_KEY   = 'pokeSym_my';
     var PTR_SYM_KEY  = 'pokeSym_partner';
@@ -983,244 +736,263 @@ function showVoiceTab() {
     });
 }
 
-        function initCoreListeners() {
-            DOMElements.sendBtn.addEventListener('click', () => isBatchMode ? addToBatch(): sendMessage());
-            DOMElements.messageInput.addEventListener('keydown', e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault(); isBatchMode ? addToBatch(): sendMessage();
+function initCoreListeners() {
+    DOMElements.sendBtn.addEventListener('click', () => isBatchMode ? addToBatch(): sendMessage());
+    DOMElements.messageInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); isBatchMode ? addToBatch(): sendMessage();
+        }
+    });
+    DOMElements.messageInput.addEventListener('input', () => {
+        DOMElements.messageInput.style.height = 'auto'; DOMElements.messageInput.style.height = `${Math.min(DOMElements.messageInput.scrollHeight, 120)}px`;
+    });
+
+    DOMElements.attachmentBtn.addEventListener('click', () => {
+
+        const modal = document.createElement('div');
+        modal.className = 'modal image-upload-modal';
+        modal.style.cssText = `
+    display: flex !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    `;
+
+        modal.innerHTML = `
+    <div class="modal-content" style="
+    z-index: 10000;
+    position: relative;
+    background-color: var(--secondary-bg);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    ">
+    <div class="modal-title"><i class="fas fa-image"></i><span>发送图片</span></div>
+    <div style="margin-bottom: 16px;">
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <button class="modal-btn modal-btn-secondary upload-mode-btn active" id="upload-image-file-btn" style="flex: 1;">选择文件</button>
+    <button class="modal-btn modal-btn-secondary upload-mode-btn" id="paste-image-url-btn" style="flex: 1;">粘贴URL</button>
+    </div>
+    <input type="file" class="modal-input" id="image-file-input" accept="image/*">
+    <input type="text" class="modal-input" id="image-url-input" placeholder="输入图片URL地址" style="display: none;">
+    <div id="image-preview" style="text-align: center; margin-top: 10px; display: none;">
+    <img id="preview-chat-image" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid var(--border-color);">
+    </div>
+    </div>
+    <div class="modal-buttons">
+    <button class="modal-btn modal-btn-secondary" id="cancel-image">取消</button>
+    <button class="modal-btn modal-btn-primary" id="send-image" disabled>发送</button>
+    </div>
+    </div>
+    `;
+
+        document.body.appendChild(modal);
+
+
+        setTimeout(() => {
+            modal.style.opacity = '1';
+            const content = modal.querySelector('.modal-content');
+            content.style.opacity = '1';
+            content.style.transform = 'translateY(0)';
+        }, 10);
+
+        const fileInput = document.getElementById('image-file-input');
+        const urlInput = document.getElementById('image-url-input');
+        const uploadBtn = document.getElementById('upload-image-file-btn');
+        const pasteUrlBtn = document.getElementById('paste-image-url-btn');
+        const previewDiv = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-chat-image');
+        const sendBtn = document.getElementById('send-image');
+        const cancelBtn = document.getElementById('cancel-image');
+        const uploadModeBtns = document.querySelectorAll('.upload-mode-btn');
+
+        let currentImageData = null;
+
+
+        function switchUploadMode(isFileMode) {
+            uploadModeBtns.forEach(btn => btn.classList.remove('active'));
+            if (isFileMode) {
+                uploadBtn.classList.add('active');
+                fileInput.style.display = 'block';
+                urlInput.style.display = 'none';
+            } else {
+                pasteUrlBtn.classList.add('active');
+                fileInput.style.display = 'none';
+                urlInput.style.display = 'block';
+                urlInput.focus();
+            }
+
+            previewDiv.style.display = 'none';
+            sendBtn.disabled = true;
+            currentImageData = null;
+        }
+
+
+        uploadBtn.addEventListener('click', () => switchUploadMode(true));
+
+
+        pasteUrlBtn.addEventListener('click', () => switchUploadMode(false));
+
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > MAX_IMAGE_SIZE) {
+                    showNotification('图片大小不能超过5MB', 'error');
+                    return;
                 }
-            });
-            DOMElements.messageInput.addEventListener('input', () => {
-                DOMElements.messageInput.style.height = 'auto'; DOMElements.messageInput.style.height = `${Math.min(DOMElements.messageInput.scrollHeight, 120)}px`;
-            });
-
-            DOMElements.attachmentBtn.addEventListener('click', () => {
-
-                const modal = document.createElement('div');
-                modal.className = 'modal image-upload-modal';
-                modal.style.cssText = `
-            display: flex !important;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 9999;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(8px);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            `;
-
-                modal.innerHTML = `
-            <div class="modal-content" style="
-            z-index: 10000;
-            position: relative;
-            background-color: var(--secondary-bg);
-            border-radius: var(--radius);
-            padding: 24px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            transform: translateY(20px);
-            opacity: 0;
-            transition: all 0.3s ease;
-            ">
-            <div class="modal-title"><i class="fas fa-image"></i><span>发送图片</span></div>
-            <div style="margin-bottom: 16px;">
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <button class="modal-btn modal-btn-secondary upload-mode-btn active" id="upload-image-file-btn" style="flex: 1;">选择文件</button>
-            <button class="modal-btn modal-btn-secondary upload-mode-btn" id="paste-image-url-btn" style="flex: 1;">粘贴URL</button>
-            </div>
-            <input type="file" class="modal-input" id="image-file-input" accept="image/*">
-            <input type="text" class="modal-input" id="image-url-input" placeholder="输入图片URL地址" style="display: none;">
-            <div id="image-preview" style="text-align: center; margin-top: 10px; display: none;">
-            <img id="preview-chat-image" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid var(--border-color);">
-            </div>
-            </div>
-            <div class="modal-buttons">
-            <button class="modal-btn modal-btn-secondary" id="cancel-image">取消</button>
-            <button class="modal-btn modal-btn-primary" id="send-image" disabled>发送</button>
-            </div>
-            </div>
-            `;
-
-                document.body.appendChild(modal);
-
-                setTimeout(() => {
-                    modal.style.opacity = '1';
-                    const content = modal.querySelector('.modal-content');
-                    content.style.opacity = '1';
-                    content.style.transform = 'translateY(0)';
-                }, 10);
-
-                const fileInput = document.getElementById('image-file-input');
-                const urlInput = document.getElementById('image-url-input');
-                const uploadBtn = document.getElementById('upload-image-file-btn');
-                const pasteUrlBtn = document.getElementById('paste-image-url-btn');
-                const previewDiv = document.getElementById('image-preview');
-                const previewImg = document.getElementById('preview-chat-image');
-                const sendBtn = document.getElementById('send-image');
-                const cancelBtn = document.getElementById('cancel-image');
-                const uploadModeBtns = document.querySelectorAll('.upload-mode-btn');
-
-                let currentImageData = null;
-
-                function switchUploadMode(isFileMode) {
-                    uploadModeBtns.forEach(btn => btn.classList.remove('active'));
-                    if (isFileMode) {
-                        uploadBtn.classList.add('active');
-                        fileInput.style.display = 'block';
-                        urlInput.style.display = 'none';
-                    } else {
-                        pasteUrlBtn.classList.add('active');
-                        fileInput.style.display = 'none';
-                        urlInput.style.display = 'block';
-                        urlInput.focus();
-                    }
-
-                    previewDiv.style.display = 'none';
-                    sendBtn.disabled = true;
-                    currentImageData = null;
-                }
-
-                uploadBtn.addEventListener('click', () => switchUploadMode(true));
-
-                pasteUrlBtn.addEventListener('click', () => switchUploadMode(false));
-
-                fileInput.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file) {
-                        if (file.size > MAX_IMAGE_SIZE) {
-                            showNotification('图片大小不能超过5MB', 'error');
-                            return;
-                        }
-                        showNotification('正在优化图片...', 'info', 1500);
-                        optimizeImage(file).then(optimizedData => {
-                            currentImageData = optimizedData;
-                            previewImg.src = currentImageData;
-                            previewDiv.style.display = 'block';
-                            sendBtn.disabled = false;
-                        }).catch(() => {
-                            showNotification('图片处理失败', 'error');
-                        });
-                    }
+                showNotification('正在优化图片...', 'info', 1500);
+                optimizeImage(file).then(optimizedData => {
+                    currentImageData = optimizedData;
+                    previewImg.src = currentImageData;
+                    previewDiv.style.display = 'block';
+                    sendBtn.disabled = false;
+                }).catch(() => {
+                    showNotification('图片处理失败', 'error');
                 });
+            }
+        });
 
-                urlInput.addEventListener('input',
-                    function() {
-                        const url = urlInput.value.trim();
-                        if (url) {
-                            if (/^(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp|bmp))$/i.test(url)) {
-                                previewImg.src = url;
-                                previewDiv.style.display = 'block';
-                                currentImageData = url;
-                                sendBtn.disabled = false;
 
-                                const img = new Image();
-                                img.onload = function() {
-                                    previewImg.src = url;
-                                    showNotification('图片URL有效', 'success', 1000);
-                                };
-                                img.onerror = function() {
-                                    showNotification('图片URL无效或无法访问', 'error');
-                                    sendBtn.disabled = true;
-                                    previewDiv.style.display = 'none';
-                                };
-                                img.src = url;
-                            } else {
-                                sendBtn.disabled = true;
-                                previewDiv.style.display = 'none';
-                            }
-                        } else {
+        urlInput.addEventListener('input',
+            function() {
+                const url = urlInput.value.trim();
+                if (url) {
+
+                    if (/^(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp|bmp))$/i.test(url)) {
+                        previewImg.src = url;
+                        previewDiv.style.display = 'block';
+                        currentImageData = url;
+                        sendBtn.disabled = false;
+
+
+                        const img = new Image();
+                        img.onload = function() {
+
+                            previewImg.src = url;
+                            showNotification('图片URL有效', 'success', 1000);
+                        };
+                        img.onerror = function() {
+                            showNotification('图片URL无效或无法访问', 'error');
                             sendBtn.disabled = true;
                             previewDiv.style.display = 'none';
-                        }
-                    });
-
-                sendBtn.addEventListener('click',
-                    () => {
-                        if (currentImageData) {
-                            addMessage({
-                                id: Date.now(),
-                                sender: 'user',
-                                text: '',
-                                timestamp: new Date(),
-                                image: currentImageData,
-                                status: 'sent',
-                                favorited: false,
-                                note: null,
-                                replyTo: currentReplyTo,
-                                type: 'normal'
-                            });
-                            playSound('send');
-                            currentReplyTo = null;
-                            updateReplyPreview();
-                            const delayRange = settings.replyDelayMax - settings.replyDelayMin;
-                            const randomDelay = settings.replyDelayMin + Math.random() * delayRange;
-                            setTimeout(simulateReply, randomDelay);
-
-                            closeModal();
-                        }
-                    });
-
-                cancelBtn.addEventListener('click',
-                    closeModal);
-
-                function closeModal() {
-                    modal.style.opacity = '0';
-                    const content = modal.querySelector('.modal-content');
-                    content.style.opacity = '0';
-                    content.style.transform = 'translateY(20px)';
-                    setTimeout(() => {
-                        if (modal.parentNode) {
-                            modal.parentNode.removeChild(modal);
-                        }
-                    },
-                        300);
-                }
-
-                modal.addEventListener('click',
-                    (e) => {
-                        if (e.target === modal) {
-                            closeModal();
-                        }
-                    });
-
-                modal.querySelector('.modal-content').addEventListener('click',
-                    (e) => {
-                        e.stopPropagation();
-                    });
-
-                const handleEscKey = (e) => {
-                    if (e.key === 'Escape') {
-                        closeModal();
-                        document.removeEventListener('keydown', handleEscKey);
-                    }
-                };
-                document.addEventListener('keydown', handleEscKey);
-
-                modal.addEventListener('close', () => {
-                    document.removeEventListener('keydown', handleEscKey);
-                });
-            });
-
-            DOMElements.imageInput.addEventListener('change', () => {
-                if (DOMElements.imageInput.files[0]) {
-                    if (isBatchMode) {
-                        showNotification('批量模式不支持图片', 'warning');
-                        DOMElements.imageInput.value = '';
+                        };
+                        img.src = url;
                     } else {
-                        sendMessage();
+                        sendBtn.disabled = true;
+                        previewDiv.style.display = 'none';
                     }
+                } else {
+                    sendBtn.disabled = true;
+                    previewDiv.style.display = 'none';
                 }
             });
 
-            DOMElements.continueBtn.addEventListener('click', simulateReply);
-            DOMElements.batchBtn.addEventListener('click', toggleBatchMode);
+
+        sendBtn.addEventListener('click',
+            () => {
+                if (currentImageData) {
+
+                    addMessage({
+                        id: Date.now(),
+                        sender: 'user',
+                        text: '',
+                        timestamp: new Date(),
+                        image: currentImageData,
+                        status: 'sent',
+                        favorited: false,
+                        note: null,
+                        replyTo: currentReplyTo,
+                        type: 'normal'
+                    });
+                    playSound('send');
+                    currentReplyTo = null;
+                    updateReplyPreview();
+                    const delayRange = settings.replyDelayMax - settings.replyDelayMin;
+                    const randomDelay = settings.replyDelayMin + Math.random() * delayRange;
+                    setTimeout(simulateReply, randomDelay);
+
+
+                    closeModal();
+                }
+            });
+
+
+        cancelBtn.addEventListener('click',
+            closeModal);
+
+
+        function closeModal() {
+            modal.style.opacity = '0';
+            const content = modal.querySelector('.modal-content');
+            content.style.opacity = '0';
+            content.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                if (modal.parentNode) {
+                    modal.parentNode.removeChild(modal);
+                }
+            },
+                300);
         }
+
+
+        modal.addEventListener('click',
+            (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+
+        modal.querySelector('.modal-content').addEventListener('click',
+            (e) => {
+                e.stopPropagation();
+            });
+
+
+        const handleEscKey = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', handleEscKey);
+            }
+        };
+        document.addEventListener('keydown', handleEscKey);
+
+
+        modal.addEventListener('close', () => {
+            document.removeEventListener('keydown', handleEscKey);
+        });
+    });
+
+
+    DOMElements.imageInput.addEventListener('change', () => {
+        if (DOMElements.imageInput.files[0]) {
+            if (isBatchMode) {
+                showNotification('批量模式不支持图片', 'warning');
+                DOMElements.imageInput.value = '';
+            } else {
+                sendMessage();
+            }
+        }
+    });
+
+    DOMElements.continueBtn.addEventListener('click', simulateReply);
+    DOMElements.batchBtn.addEventListener('click', toggleBatchMode);
+}
 
 window._dailyGreetingReady = false;
 
@@ -1472,8 +1244,10 @@ function _buildDailyGreeting() {
 
         var statusPoolData = [];
         try { statusPoolData = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {}
+        // 将系统预设 + 用户自定义混合后，按今日种子选取
         var systemStatusItems = (function() {
             var sysPool = [];
+            // 将系统状态文本包装成与 statusPoolData 兼容的格式
             var baseStatus = (typeof status !== 'undefined') ? status : '';
             if (baseStatus) sysPool.push({ status: baseStatus, icon: null, iconImg: null });
             return sysPool;
@@ -1762,8 +1536,11 @@ window.switchToAnnouncementPanel = function() {
     var subTabs = document.getElementById('cr-sub-tabs');
     var addBtn = document.getElementById('add-custom-reply');
     var titleEl = document.getElementById('cr-modal-title');
+    // 隐藏并清空列表区域，彻底清除 emoji/sticker/字卡等残留内容
     if (listArea) { listArea.style.display = 'none'; listArea.innerHTML = ''; listArea.className = 'content-list-area'; }
+    // 隐藏并清空批量操作工具栏，防止工具栏内容残留
     if (batchToolbar) { batchToolbar.style.display = 'none'; batchToolbar.innerHTML = ''; }
+    // 隐藏并清空 sub tabs，防止 tab 按钮残留
     if (subTabs) { subTabs.style.display = 'none'; subTabs.innerHTML = ''; }
     if (annPanel) { annPanel.style.display = 'block'; annPanel.scrollTop = 0; }
     if (toolbar) toolbar.style.display = 'none';
@@ -2019,584 +1796,3 @@ window.tryShowDailyGreeting = function() {
         if (modal) modal.classList.remove('hidden');
     } catch(e) { console.warn('Daily greeting show error:', e); }
 };
-
-        function safeGetItem(key) {
-            try { return localStorage.getItem(key); }
-            catch (e) { console.error('Error getting item:', e); return null; }
-        }
-
-        function safeSetItem(key, value) {
-            try {
-                if (typeof value === 'object') value = JSON.stringify(value);
-                localStorage.setItem(key, value);
-            } catch (e) { console.error('Error setting item:', e); }
-        }
-
-        function safeRemoveItem(key) {
-            try { localStorage.removeItem(key); }
-            catch (e) { console.error('Error removing item:', e); }
-        }
-
-function getRandomItem(arr) {
-    if (!arr || arr.length === 0) return null;
-    return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function normalizeStringStrict(s) {
-    if (typeof s !== 'string') return '';
-    return s.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function deduplicateContentArray(arr, baseSystemArray = []) {
-    const seen = new Set(baseSystemArray.map(normalizeStringStrict));
-    const result = [];
-    let removedCount = 0;
-    for (const item of arr) {
-        const norm = normalizeStringStrict(item);
-        if (norm !== '' && !seen.has(norm)) {
-            seen.add(norm);
-            result.push(item);
-        } else {
-            removedCount++;
-        }
-    }
-    return { result, removedCount };
-}
-
-        function cropImageToSquare(file, maxSize = 640) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const minSide = Math.min(img.width, img.height);
-                        const sx = (img.width - minSide) / 2;
-                        const sy = (img.height - minSide) / 2;
-                        const canvas = document.createElement('canvas');
-                        canvas.width = maxSize; canvas.height = maxSize;
-                        const ctx = canvas.getContext('2d');
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
-                        resolve(canvas.toDataURL('image/jpeg', 0.95));
-                    };
-                    img.onerror = reject;
-                    img.src = e.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function exportDataToMobileOrPC(dataString, fileName) {
-            if (navigator.share && navigator.canShare) {
-                try {
-                    const blob = new Blob([dataString], { type: 'application/json' });
-                    const file = new File([blob], fileName, { type: 'application/json' });
-                    if (navigator.canShare({ files: [file] })) {
-                        navigator.share({ files: [file], title: '传讯数据备份', text: '请选择"保存到文件"' })
-                            .catch(() => downloadFileFallback(blob, fileName));
-                        return;
-                    }
-                } catch (e) {}
-            }
-            const blob = new Blob([dataString], { type: 'application/json' });
-            downloadFileFallback(blob, fileName);
-        }
-
-        function downloadFileFallback(blob, fileName) {
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url; link.download = fileName; link.style.display = 'none';
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
-        }
-
-        if (typeof localforage !== 'undefined') {
-            localforage.config({
-                driver: [localforage.INDEXEDDB, localforage.WEBSQL, localforage.LOCALSTORAGE],
-                name: 'ChatApp_V3', version: 1.0, storeName: 'chat_data',
-                description: 'Storage for Chat App V3'
-            });
-        } else {
-            console.warn('[storage] localforage 未加载，IndexedDB 能力不可用，将退回 localStorage/内存兜底');
-        }
-
-        function showNotification(message, type = 'info', duration = 3000) {
-            const existing = document.querySelector('.notification');
-            if (existing) existing.remove();
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            const iconMap = { success:'fa-check-circle', error:'fa-exclamation-circle', info:'fa-info-circle', warning:'fa-exclamation-triangle' };
-            notification.innerHTML = `<i class="fas ${iconMap[type] || 'fa-info-circle'}"></i><span>${message}</span>`;
-            document.body.appendChild(notification);
-            setTimeout(() => {
-                notification.classList.add('hiding');
-                notification.addEventListener('animationend', () => notification.remove());
-            }, duration);
-        }
-
-        let _currentAudioContext = null;
-        let _currentAudio = null;
-
-        const stopCurrentSound = () => {
-            try {
-                if (_currentAudio) {
-                    _currentAudio.pause();
-                    _currentAudio.currentTime = 0;
-                    _currentAudio = null;
-                }
-                if (_currentAudioContext) {
-                    _currentAudioContext.close();
-                    _currentAudioContext = null;
-                }
-            } catch(e) {}
-        };
-
-        const playSound = (type) => {
-            if (!settings.soundEnabled) return;
-            stopCurrentSound();
-            try {
-                // =============== 两方音效配置 ===============
-                const category = (() => {
-                    // 新类型（按两方区分）
-                    if (type === 'my_send') return 'my_send';
-                    if (type === 'partner_message') return 'partner_message';
-                    if (type === 'my_poke') return 'my_poke';
-                    if (type === 'partner_poke') return 'partner_poke';
-                    // 兼容旧调用
-                    if (type === 'send') return 'my_send';
-                    if (type === 'message') return 'partner_message';
-                    if (type === 'poke') return 'my_poke';
-                    return null;
-                })();
-
-                const customUrlByCategory = (() => {
-                    if (!category) return '';
-                    if (category === 'my_send') return settings.mySendCustomSoundUrl || '';
-                    if (category === 'partner_message') return settings.partnerMessageCustomSoundUrl || '';
-                    if (category === 'my_poke') return settings.myPokeCustomSoundUrl || '';
-                    if (category === 'partner_poke') return settings.partnerPokeCustomSoundUrl || '';
-                    return '';
-                })();
-
-                const legacyCustomUrl = (settings.customSoundUrl || '').trim();
-                const resolvedCustomUrlBase = (customUrlByCategory && customUrlByCategory.trim())
-                    ? customUrlByCategory.trim()
-                    : legacyCustomUrl;
-
-                const KAKAO_TALK_URL = 'https://image.uglycat.cc/jl5xf9.mp3';
-
-                // 预设音效（无音效 / kakaoTalk）需要优先级高于自定义 URL
-                const presetId = (() => {
-                    if (!category) return '';
-                    if (category === 'my_send') return settings.mySendSoundPreset || 'tone_low';
-                    if (category === 'partner_message') return settings.partnerMessageSoundPreset || 'tone_low';
-                    if (category === 'my_poke') return settings.myPokeSoundPreset || 'tone_low';
-                    if (category === 'partner_poke') return settings.partnerPokeSoundPreset || 'tone_low';
-                    return 'tone_low';
-                })();
-
-                if (presetId === 'mute') return;
-
-                // kakaoTalk 作为"固定预设"，选择它就播放对应音频
-                let resolvedCustomUrl = (presetId === 'kakaotalk') ? KAKAO_TALK_URL : resolvedCustomUrlBase;
-
-                // 自定义 URL：只要填了就直接播放（不区分内置/预设）
-                if (resolvedCustomUrl) {
-                    const audio = new Audio(resolvedCustomUrl);
-                    audio.volume = Math.min(1, Math.max(0, settings.soundVolume || 0.15));
-                    _currentAudio = audio;
-                    audio.play().catch(() => {});
-                    audio.addEventListener('ended', () => { _currentAudio = null; });
-                    return;
-                }
-
-                // =============== 内置合成音效（两方 + 预设） ===============
-                const CATEGORY_BASE = {
-                    my_send: { osc1Type: 'triangle', osc2Type: 'sine', freq: 520, dur: 0.18, up: 1.06, down: 0.72 },
-                    partner_message: { osc1Type: 'triangle', osc2Type: 'sine', freq: 460, dur: 0.2, up: 1.04, down: 0.74 },
-                    my_poke: { osc1Type: 'sawtooth', osc2Type: 'triangle', freq: 400, dur: 0.16, up: 1.08, down: 0.76 },
-                    partner_poke: { osc1Type: 'sawtooth', osc2Type: 'triangle', freq: 380, dur: 0.16, up: 1.08, down: 0.76 }
-                };
-
-                const PRESET_EFFECTS = {
-                    // 预设 effect：允许覆盖波形与倍率（不填则沿用基础音色）
-                    tone_default: { osc1Type: 'triangle', osc2Type: 'sine', fMul: 0.92, durMul: 1.08, upMul: 1.0, downMul: 0.95 },
-                    tone_soft: { osc1Type: 'sine', osc2Type: 'triangle', fMul: 0.88, durMul: 1.15, upMul: 0.98, downMul: 0.92 },
-                    tone_low: { osc1Type: 'sawtooth', osc2Type: 'triangle', fMul: 0.78, durMul: 1.2, upMul: 0.96, downMul: 0.88 },
-                    tone_warm: { osc1Type: 'triangle', osc2Type: 'triangle', fMul: 0.84, durMul: 1.1, upMul: 0.98, downMul: 0.9 },
-                    tone_dark: { osc1Type: 'square', osc2Type: 'triangle', fMul: 0.72, durMul: 1.25, upMul: 0.95, downMul: 0.85 },
-                    tone_haze: { osc1Type: 'sine', osc2Type: 'square', fMul: 0.8, durMul: 1.18, upMul: 0.97, downMul: 0.9 }
-                };
-
-                // presetId 已在上方计算
-
-                const cfg = (() => {
-                    if (category && CATEGORY_BASE[category]) {
-                        const base = CATEGORY_BASE[category];
-                        const fx = PRESET_EFFECTS[presetId] || PRESET_EFFECTS.tone_default;
-                        const osc1Type = (typeof fx.osc1Type === 'string') ? fx.osc1Type : base.osc1Type;
-                        const osc2Type = (typeof fx.osc2Type === 'string') ? fx.osc2Type : base.osc2Type;
-                        const freq = base.freq * (fx.fMul || 1);
-                        const dur = base.dur * (fx.durMul || 1);
-                        const up = base.up * (fx.upMul || 1);
-                        const down = base.down * (fx.downMul || 1);
-                        return { osc1Type, osc2Type, freq, dur, up, down };
-                    }
-
-                    // 兼容其它旧声音类型（不走两方预设）
-                    if (type === 'favorite') return { osc1Type: 'sine', osc2Type: 'sine', freq: 1200, dur: 0.18, up: 1.06, down: 0.70 };
-                    if (type === 'mood') return { osc1Type: 'sine', osc2Type: 'square', freq: 440, dur: 0.16, up: 1.12, down: 0.60 };
-                    if (type === 'import') return { osc1Type: 'square', osc2Type: 'triangle', freq: 330, dur: 0.16, up: 1.25, down: 0.70 };
-                    if (type === 'export') return { osc1Type: 'triangle', osc2Type: 'sine', freq: 520, dur: 0.16, up: 1.15, down: 0.66 };
-                    if (type === 'error') return { osc1Type: 'sawtooth', osc2Type: 'square', freq: 180, dur: 0.14, up: 1.03, down: 0.42 };
-                    return { osc1Type: 'sine', osc2Type: 'triangle', freq: 600, dur: 0.15, up: 1.05, down: 0.60 };
-                })();
-
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                _currentAudioContext = audioContext;
-                const gainNode = audioContext.createGain();
-                const vol = Math.min(0.55, Math.max(0.01, settings.soundVolume || 0.1));
-
-                // 叠加一层泛音让音色更"厚"
-                const osc1 = audioContext.createOscillator();
-                const osc2 = audioContext.createOscillator();
-
-                osc1.connect(gainNode);
-                osc2.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                const now = audioContext.currentTime;
-                gainNode.gain.setValueAtTime(vol, now);
-
-                const jitter = (Math.random() - 0.5) * 0.02; // 轻微随机
-                const f1 = cfg.freq * (1 + jitter);
-                const f2 = f1 * 2;
-
-                osc1.type = cfg.osc1Type;
-                osc2.type = cfg.osc2Type;
-
-                osc1.frequency.setValueAtTime(f1, now);
-                osc2.frequency.setValueAtTime(f2, now);
-
-                // 频率滑动 + 音量包络
-                osc1.frequency.exponentialRampToValueAtTime(f1 * cfg.up, now + 0.04);
-                osc2.frequency.exponentialRampToValueAtTime(f2 * (cfg.up - 0.03), now + 0.04);
-
-                osc1.frequency.exponentialRampToValueAtTime(f1 * cfg.down, now + cfg.dur);
-                osc2.frequency.exponentialRampToValueAtTime(f2 * cfg.down, now + cfg.dur);
-
-                const end = now + cfg.dur;
-                osc1.start(now);
-                osc2.start(now);
-
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, end);
-
-                osc1.stop(end);
-                osc2.stop(end);
-                audioContext.addEventListener('statechange', () => {
-                    if (audioContext.state === 'closed') _currentAudioContext = null;
-                });
-            } catch (e) { console.warn("音频播放失败:", e); }
-        };
-
-        const throttledSaveData = () => {
-            if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                try {
-                    const maybePromise = saveData();
-                    if (maybePromise && typeof maybePromise.catch === 'function') {
-                        maybePromise.catch(e => console.error('[throttledSaveData] 保存失败:', e));
-                    }
-                } catch (e) {
-                    console.error('[throttledSaveData] 保存失败:', e);
-                }
-            }, 500);
-        };
-        window.throttledSaveData = throttledSaveData;
-
-async function applyCustomFont(url) {
-    if (!url || !url.trim()) {
-        document.documentElement.style.removeProperty('--font-family');
-        document.documentElement.style.removeProperty('--message-font-family');
-        return;
-    }
-    const fontName = 'UserCustomFont';
-    try {
-        const font = new FontFace(fontName, `url(${url})`);
-        await font.load();
-        document.fonts.add(font);
-        const fontStack = `"${fontName}", 'Noto Serif SC', serif`;
-        document.documentElement.style.setProperty('--font-family', fontStack);
-        document.documentElement.style.setProperty('--message-font-family', fontStack);
-        if (typeof settings !== 'undefined') settings.messageFontFamily = fontStack;
-    } catch (e) {
-        console.error('字体加载失败:', e);
-        showNotification('字体加载失败，请检查链接是否有效', 'error');
-    }
-}
-
-function applyCustomBubbleCss(cssCode) {
-    const styleId = 'user-custom-bubble-style';
-    let styleTag = document.getElementById(styleId);
-    if (!cssCode || !cssCode.trim()) { if (styleTag) styleTag.remove(); return; }
-    if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = styleId; }
-    document.head.appendChild(styleTag);
-
-    function boostSpecificity(css) {
-        return css.replace(/([^{}@][^{}]*)\{([^{}]*)\}/g, (match, rawSel, body) => {
-            const selectors = rawSel.split(',').map(s => s.trim()).filter(Boolean);
-            const boosted = selectors.map(sel => {
-                if (sel.startsWith('html') || sel.startsWith('@') || sel.startsWith('from') || sel.startsWith('to') || /^\d/.test(sel)) return sel;
-                return `html body ${sel}`;
-            });
-            return `${boosted.join(', ')} {${body}}`;
-        });
-    }
-
-    const boostedCss = boostSpecificity(cssCode);
-
-    styleTag.textContent = boostedCss + `
-/* image bubble reset — must stay !important */
-html[data-theme] .message.message-image-bubble-none,
-html body .message.message-image-bubble-none {
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; padding: 0 !important; border-radius: 0 !important;
-}`;
-
-    try {
-        const alreadyCustomized = (typeof settings !== 'undefined' && settings.customThemeColors) ? settings.customThemeColors : {};
-        const sentMatch  = cssCode.match(/\.message-sent\s*\{([^}]*)\}/);
-        const recvMatch  = cssCode.match(/\.message-received\s*\{([^}]*)\}/);
-        if (sentMatch && !alreadyCustomized['--message-sent-text']) {
-            const colorLine = sentMatch[1].match(/\bcolor\s*:\s*([^;}\n]+)/);
-            if (colorLine) {
-                const v = colorLine[1].trim().replace(/!important/g,'').trim();
-                if (v && !v.startsWith('var(')) {
-                    document.documentElement.style.setProperty('--message-sent-text', v);
-                }
-            }
-        }
-        if (recvMatch && !alreadyCustomized['--message-received-text']) {
-            const colorLine = recvMatch[1].match(/\bcolor\s*:\s*([^;}\n]+)/);
-            if (colorLine) {
-                const v = colorLine[1].trim().replace(/!important/g,'').trim();
-                if (v && !v.startsWith('var(')) {
-                    document.documentElement.style.setProperty('--message-received-text', v);
-                }
-            }
-        }
-    } catch(e) {}
-}
-
-function applyGlobalThemeCss(cssCode) {
-    const styleId = 'user-custom-global-theme-style';
-    let styleTag = document.getElementById(styleId);
-    if (!cssCode || !cssCode.trim()) { if (styleTag) styleTag.remove(); return; }
-    if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = styleId; document.head.appendChild(styleTag); }
-    styleTag.textContent = cssCode;
-}
-
-async function exportAllData() {
-    try {
-        if (typeof ChatBackup !== 'undefined' && ChatBackup.buildBackupPayload && ChatBackup.serializeBackupV4) {
-            const payload = await ChatBackup.buildBackupPayload({
-                inclMsgs: true,
-                inclSet: true,
-                inclCustom: true,
-                inclThemes: true,
-                inclDg: true,
-                inclStickers: true,
-                inclHome: true,
-                inclMoyu: true,
-                inclShop: true,
-                inclMoments: true,
-                inclMap: true,
-                inclTaPhone: true,
-                inclPet: true,
-                inclDiary: true,
-                inclAccounting: true,
-                inclEnvelope: true,
-                inclMood: true,
-                inclTarot: true,
-                inclCall: true,
-                inclGroupChat: true,
-                inclSpark: true,
-                inclFeatures: true,
-                inclCoreExtra: true,
-                inclOnboarding: true
-            });
-            const jsonString = ChatBackup.serializeBackupV4(payload);
-            const dateStr = new Date().toISOString().slice(0, 10);
-            const fileName = `chatapp-backup-${dateStr}.json`;
-            const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
-            downloadFileFallback(blob, fileName);
-            if (typeof showNotification === 'function') showNotification('已导出 JSON 备份', 'success');
-        } else {
-            showNotification('备份模块或函数未加载，请刷新页面', 'error');
-        }
-    } catch (e) {
-        console.error('全量导出失败:', e);
-        showNotification('全量导出失败，请重试', 'error');
-    }
-}
-
-async function importAllData(file) {
-    if (!file) return;
-    if (file.size > 220 * 1024 * 1024) {
-        showNotification('文件过大（>220MB），请确认是否为正确备份', 'error');
-        return;
-    }
-    try {
-        if (typeof ChatBackup === 'undefined' || !ChatBackup.loadBackupFromFile || !ChatBackup.applyBackupToStorage) {
-            showNotification('备份模块未加载，请刷新页面重试', 'error');
-            return;
-        }
-        const data = await ChatBackup.loadBackupFromFile(file);
-        const fullLike = ChatBackup.isFullBackupShape
-            ? ChatBackup.isFullBackupShape(data)
-            : (
-                data.type === 'full' ||
-                (typeof data.type === 'string' && data.type.includes('full-backup')) ||
-                !!data.indexedDB ||
-                !!data.localforage
-            );
-        if (!fullLike) {
-            if (typeof importChatHistory === 'function') importChatHistory(file);
-            return;
-        }
-        if (!confirm('导入全量备份将按你的选择覆盖对应数据。\n\n头像/背景等如勾选导入会写入备份中的内容。\n\n确定继续吗？')) return;
-
-        const categories = [
-            {
-                id: 'chat',
-                label: '聊天记录 / 会话 / 红包',
-                indexedDBNeedles: ['chatMessages', 'sessionList', 'chatSettings', 'showPartnerNameInChat', 'envelopeData', 'pending_envelope'],
-                localStorageNeedles: ['groupChatSettings']
-            },
-            {
-                id: 'replies',
-                label: '回复 / 拍一拍 / 氛围',
-                indexedDBNeedles: ['customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customReplyGroups', 'customPokeGroups', 'customStatusGroups'],
-                localStorageNeedles: ['disabledReplyItems', 'pokeSym_my', 'pokeSym_partner', 'pokeSym_my_custom', 'pokeSym_partner_custom']
-            },
-            {
-                id: 'stickers',
-                label: '表情库（贴纸）',
-                indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary'],
-                localStorageNeedles: ['disabledStickerItems']
-            },
-            {
-                id: 'mood',
-                label: '心晴手账',
-                indexedDBNeedles: ['moodCalendar', 'customMoodOptions', 'moodTrash'],
-                localStorageNeedles: []
-            },
-            {
-                id: 'themes',
-                label: '主题 / 外观 / 图库',
-                indexedDBNeedles: ['customThemes', 'themeSchemes', 'backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'partnerPersonas'],
-                localStorageNeedles: []
-            },
-            {
-                id: 'dg',
-                label: '每日公告 / 运势 / 天气',
-                indexedDBNeedles: [],
-                localStorageNeedles: ['dg_custom_data', 'dg_status_pool', 'weekly_fortune', 'daily_fortune'],
-                localStoragePrefixes: ['customWeather_']
-            },
-            {
-                id: 'moments',
-                label: '朋友圈',
-                indexedDBNeedles: [],
-                localStorageNeedles: ['moments_data', 'moments_visitor_records', 'moments_friends', 'moments_reply_speed', 'moments_reply_count_min', 'moments_reply_count_max', 'moments_friend_like', 'moments_cover', 'moments_visitor_last_online', 'moments_visitor_last_viewed_count', 'home_avatar_me', 'profile_me']
-            },
-            {
-                id: 'shop',
-                label: '商城',
-                indexedDBNeedles: [],
-                localStorageNeedles: ['shop_balance', 'shop_search_history', 'shop_gift_cabinet', 'shop_products', 'shop_cart', 'shop_orders']
-            },
-            {
-                id: 'diary',
-                label: '朝夕心记',
-                indexedDBNeedles: ['diaryTodos', 'diaryHabits', 'diaryHabitRecords', 'diaryPeriodRecords', 'diaryAnniversaries', 'diaryTodoCategories'],
-                localStorageNeedles: ['diaryPeriodLastReminderDate']
-            },
-            {
-                id: 'accounting',
-                label: '同心记账',
-                indexedDBNeedles: ['accountingRecords', 'accountingLabels'],
-                localStorageNeedles: []
-            },
-            {
-                id: 'taPhone',
-                label: 'TA的手机',
-                indexedDBNeedles: [],
-                localStorageNeedles: ['ta_phone_collections']
-            }
-        ];
-
-        const pickSelected = () => new Promise((resolve) => {
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-                position:fixed;inset:0;z-index:99999999;background:rgba(0,0,0,0.6);
-                backdrop-filter:blur(10px);display:flex;align-items:flex-end;justify-content:center;
-            `;
-            overlay.innerHTML = `
-                <div style="
-                    width:100%;max-width:560px;background:var(--secondary-bg);border-radius:24px 24px 0 0;
-                    box-shadow:0 -10px 60px rgba(0,0,0,0.3);
-                    padding:16px 18px env(safe-area-inset-bottom,0);
-                ">
-                    <div style="width:36px;height:4px;border-radius:2px;background:var(--border-color);margin:0 auto 14px;"></div>
-                    <div style="font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:10px;">全量恢复：选择要导入的部分</div>
-                    <div style="display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow:auto;padding-right:6px;">
-                        ${categories.map(c => {
-                            return `
-                                <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px;border:1.5px solid var(--border-color);border-radius:16px;background:var(--primary-bg);">
-                                    <span style="font-size:13px;font-weight:700;color:var(--text-primary);">${c.label}</span>
-                                    <input type="checkbox" data-cat="${c.id}" checked style="transform:scale(1.1);accent-color:var(--accent-color);">
-                                </label>
-                            `;
-                        }).join('')}
-                    </div>
-                    <div style="display:flex;gap:10px;margin-top:14px;">
-                        <button id="full-imp-cancel" class="modal-btn modal-btn-secondary" style="flex:1;padding:12px 0;">取消</button>
-                        <button id="full-imp-confirm" class="modal-btn modal-btn-primary" style="flex:1;padding:12px 0;">确认恢复</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-
-            overlay.addEventListener('click', (ev) => { if (ev.target === overlay) { overlay.remove(); resolve(null); } });
-            const fullImpCancelBtn = document.getElementById('full-imp-cancel');
-            const fullImpConfirmBtn = document.getElementById('full-imp-confirm');
-            if (fullImpCancelBtn) fullImpCancelBtn.onclick = () => { overlay.remove(); resolve(null); };
-            if (fullImpConfirmBtn) fullImpConfirmBtn.onclick = () => {
-                const selected = Array.from(overlay.querySelectorAll('input[type=checkbox]:checked'))
-                    .map(i => i.dataset.cat);
-                overlay.remove();
-                resolve(selected);
-            };
-        });
-
-        const selectedCats = await pickSelected();
-        if (!selectedCats || selectedCats.length === 0) return;
-
-        showNotification('正在恢复数据…', 'info', 3000);
-        await ChatBackup.applyBackupToStorage(data, {
-            selective: true,
-            selectedCategoryIds: selectedCats,
-            categories
-        });
-
-        showNotification('恢复完成，即将刷新页面…', 'success', 2000);
-        setTimeout(() => location.reload(), 2200);
-    } catch (err) {
-        console.error('全量导入失败:', err);
-        const msg = err && err.message ? err.message : '未知错误';
-        showNotification('全量导入失败：' + msg, 'error', 5000);
-    }
-}
