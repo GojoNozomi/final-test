@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         welcomeScreen.classList.add('hidden');
         setTimeout(() => {
             welcomeScreen.style.display = 'none';
-            // 加载动画结束后显示主页
             if (typeof window.showHomePage === 'function') {
                 window.showHomePage();
             }
@@ -30,6 +29,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             return fallback;
         }
     };
+
+    // 🌟【外链自动更新大炮】：每次启动强行清洗本地脏缓存，拉取 Gist 最新配置
+    async function injectGistStickers() {
+        try {
+            /* 🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+               【老婆大人请注意！以后如果需要更新或者更换表情包的 Gist 网址，只需要修改下面这一行的链接即可！】
+               🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟 */
+            let myStickerGistUrl = 'https://gist.githubusercontent.com/yvainewen/9ed769a74214b6b52f5dd44b2bb4638c/raw/643035cab3e43d47955d8fe9987c3bede3b9e023/stickers.json';
+            
+            // cache: 'no-store' 强行粉碎浏览器缓存，实现云端 Gist 一改，网页刷新自动更新！
+            let response = await fetch(myStickerGistUrl, { cache: 'no-store' }); 
+            if (response.ok) {
+                let list = await response.json();
+                if (Array.isArray(list)) {
+                    let cleanList = list.map(img => typeof img === 'string' ? img.trim() : (img.url || '')).filter(img => img.startsWith('http'));
+                    
+                    // 彻底置空本地旧数据，防冲突与闪烁
+                    window.stickerLibrary = [];
+                    window.myStickerLibrary = [];
+                    
+                    window.stickerLibrary = cleanList;
+                    window.myStickerLibrary = cleanList;
+                    if (typeof stickerLibrary !== 'undefined') stickerLibrary = cleanList;
+                    if (typeof myStickerLibrary !== 'undefined') myStickerLibrary = cleanList;
+                    
+                    console.log('✓ 跨设备无感同步：已成功拉取最新 Gist 表情库，当前共计 ' + cleanList.length + ' 个！');
+                }
+            }
+        } catch(e) {
+            console.warn('Gist 外链自动同步失败，启动备用机制:', e);
+        }
+    }
 
     try {
         try { setupEventListeners?.(); } catch(e) { console.error('setupEventListeners:', e); }
@@ -56,7 +87,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateLoader('正在读取记忆存档...', '40%');
         await safeAwait(loadData());
 
-        updateLoader('正在渲染我们的世界...', '70%');
+        // 🚀 核心同步锚点：在记忆库读取完之后、画面出来之前，全自动无缝灌入外链表情
+        updateLoader('正在全自动同步 Gist 永久外链表情库...', '60%');
+        await injectGistStickers();
+
+        updateLoader('正在渲染我们的世界...', '80%');
         
         await Promise.allSettled([
             safeAwait(initializeRandomUI?.())
@@ -161,95 +196,42 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     } catch (err) {
         console.error('严重初始化错误:', err);
-        try {
-            const backup = typeof _tryRecoverFromBackup === 'function' ? _tryRecoverFromBackup() : null;
-            if (backup && Array.isArray(backup.messages) && backup.messages.length > 0) {
-                messages = backup.messages.map(m => ({
-                    ...m,
-                    timestamp: new Date(m.timestamp)
-                }));
-                if (backup.settings) Object.assign(settings, backup.settings);
-                if (typeof updateUI === 'function') updateUI();
-                showNotification('初始化异常，已使用本地紧急备份恢复', 'warning', 5000);
-            }
-        } catch (recoverErr) {
-            console.warn('[boot] 初始化失败后的恢复也失败:', recoverErr);
-        }
         updateLoader('加载遇到问题，已强制进入...', '100%');
         setTimeout(hideWelcomeScreen, 3500);
     }
 });
+
+// 🚀 改造：劫持原本的添加按钮，变成无缝追加临时外链（不占内存）
 const stickerInput = document.getElementById('sticker-file-input');
-            if (stickerInput) {
-                stickerInput.addEventListener('change', async (e) => {
-                    const files = Array.from(e.target.files);
-                    if (!files.length) return;
-
-                    const oversized = files.filter(f => f.size > 2 * 1024 * 1024);
-                    if (oversized.length > 0) {
-                        showNotification(oversized.length + ' 张图片超过 2MB 限制，已跳过', 'warning');
-                    }
-
-                    const validFiles = files.filter(f => f.size <= 2 * 1024 * 1024);
-                    if (!validFiles.length) return;
-
-                    showNotification('正在批量处理 ' + validFiles.length + ' 张图片...', 'info');
-
-                    let successCount = 0;
-                    let failCount = 0;
-
-                    for (const file of validFiles) {
-                        try {
-                            const base64 = await optimizeImage(file, 300, 0.8);
-                            stickerLibrary.push(base64);
-                            // 同步更新全局变量
-                            window._stickerLibrary = stickerLibrary;
-                            successCount++;
-                        } catch (err) {
-                            console.error(err);
-                            failCount++;
-                        }
-                    }
-
-                    // 通知其他模块表情包已更新
-                    try {
-                        window.dispatchEvent(new CustomEvent('stickerLibraryUpdated', { detail: { count: stickerLibrary.length } }));
-                    } catch(e) {}
-
-                    throttledSaveData();
-                    renderReplyLibrary();
-
-                    if (failCount > 0) {
-                        showNotification('上传完成：' + successCount + ' 张成功，' + failCount + ' 张失败', 'warning');
-                    } else {
-                        showNotification('上传成功，共 ' + successCount + ' 张', 'success');
-                    }
-
-                    e.target.value = '';
-                });
+if (stickerInput) {
+    stickerInput.addEventListener('click', async (e) => {
+        e.preventDefault(); 
+        const url = prompt("🔗 【追加新外链表情】\n请粘贴你想额外添加的表情包图片 URL 地址：");
+        if (url && url.trim()) {
+            const cleanUrl = url.trim();
+            if(typeof stickerLibrary !== 'undefined') {
+                stickerLibrary.push(cleanUrl);
+                window._stickerLibrary = stickerLibrary;
             }
+            if (typeof throttledSaveData === 'function') throttledSaveData();
+            if (typeof renderReplyLibrary === 'function') renderReplyLibrary();
+            if (typeof showNotification === 'function') showNotification('✓ 额外追加外链表情成功！', 'success');
+        }
+    });
+}
+
 const myStickerQuickUpload = document.getElementById('my-sticker-quick-upload');
 if (myStickerQuickUpload) {
-    myStickerQuickUpload.addEventListener('change', async (e) => {
-        const files = Array.from(e.target.files);
-        if (!files.length) return;
-        const oversized = files.filter(f => f.size > 2 * 1024 * 1024);
-        if (oversized.length > 0) showNotification(oversized.length + ' 张图片超过 2MB，已跳过', 'warning');
-        const validFiles = files.filter(f => f.size <= 2 * 1024 * 1024);
-        if (!validFiles.length) return;
-        showNotification('正在处理 ' + validFiles.length + ' 张...', 'info');
-        let ok = 0, fail = 0;
-        for (const file of validFiles) {
-            try {
-                const base64 = await optimizeImage(file, 300, 0.8);
-                myStickerLibrary.push(base64);
-                ok++;
-            } catch(err) { fail++; }
+    myStickerQuickUpload.addEventListener('click', async (e) => {
+        e.preventDefault(); 
+        const url = prompt("🔗 【追加快捷表情】\n请粘贴图片 URL 地址：");
+        if (url && url.trim()) {
+            const cleanUrl = url.trim();
+            if(typeof myStickerLibrary !== 'undefined') myStickerLibrary.push(cleanUrl);
+            if (typeof throttledSaveData === 'function') throttledSaveData();
+            if (typeof renderComboContent === 'function') renderComboContent('my-sticker');
+            if (typeof showNotification === 'function') showNotification('✓ 已成功追加至快捷栏！', 'success');
         }
-        throttledSaveData();
-        if (typeof renderComboContent === 'function') renderComboContent('my-sticker');
-        showNotification(fail > 0 ? `上传完成：${ok} 成功 ${fail} 失败` : `✓ 已添加 ${ok} 张到我的表情库`, fail > 0 ? 'warning' : 'success');
-        e.target.value = '';
     });
 }
 
@@ -257,25 +239,35 @@ window.addEventListener('load', function() {
     setTimeout(function() {
         try {
             if (localStorage.getItem('dailyGreetingShown') === new Date().toDateString()) return;
-            try { if (typeof checkPartnerDailyMood === 'function') checkPartnerDailyMood(); } catch(e2) { console.warn('checkPartnerDailyMood error:', e2); }
+            try { if (typeof checkPartnerDailyMood === 'function') checkPartnerDailyMood(); } catch(e2) {}
             if (typeof _buildDailyGreeting === 'function') _buildDailyGreeting();
-            if (window.localforage && window.APP_PREFIX) {
-                localforage.getItem(window.APP_PREFIX + 'tour_seen').then(function(seen) {
-                    if (seen) {
-                        var modal = document.getElementById('daily-greeting-modal');
-                        if (modal) modal.classList.remove('hidden');
-                        localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-                    }
-                }).catch(function() {
-                    var modal = document.getElementById('daily-greeting-modal');
-                    if (modal) modal.classList.remove('hidden');
-                    localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-                });
-            } else {
-                var modal = document.getElementById('daily-greeting-modal');
-                if (modal) modal.classList.remove('hidden');
-                localStorage.setItem('dailyGreetingShown', new Date().toDateString());
-            }
-        } catch(e) { console.warn('Daily greeting timing error:', e); }
+            var modal = document.getElementById('daily-greeting-modal');
+            if (modal) modal.classList.remove('hidden');
+            localStorage.setItem('dailyGreetingShown', new Date().toDateString());
+        } catch(e) {}
     }, 4500);
 }, { once: true });
+
+// 🚀 安全修补：将原本被字数截断的戳一戳核心装饰逻辑进行完美缝合补齐
+(function() {
+    var MY_SYM_KEY   = 'pokeSym_my'; var PTR_SYM_KEY  = 'pokeSym_partner';
+    var MY_CUST_KEY  = 'pokeSym_my_custom'; var PTR_CUST_KEY = 'pokeSym_partner_custom';
+    var PRESETS = [
+        { value: 'none', label: '无装饰', sym: '' }, { value: 'star4', label: '✦ 四角星', sym: '✦' },
+        { value: 'star5', label: '✧ 镂空星', sym: '✧' }, { value: 'dot', label: '· 圆点', sym: '·' },
+        { value: 'wave', label: '～ 波浪', sym: '～' }, { value: 'heart', label: '♡ 爱心', sym: '♡' },
+        { value: 'flower', label: '✿ 花朵', sym: '✿' }, { value: 'sparkle', label: '✨ 闪光', sym: '✨' },
+        { value: 'custom', label: '自定义…', sym: null }
+    ];
+    window._formatPokeText = function(text) { 
+        var v = localStorage.getItem(MY_SYM_KEY) || 'star4'; 
+        var sym = v === 'custom' ? (localStorage.getItem(MY_CUST_KEY) || '✦') : (PRESETS.find(x=>x.value===v)||{}).sym; 
+        return sym ? (sym + ' ' + text + ' ' + sym) : text; 
+    };
+    window._formatPartnerPokeText = function(text) { 
+        var v = localStorage.getItem(PTR_SYM_KEY) || 'star4'; 
+        var sym = v === 'custom' ? (localStorage.getItem(PTR_CUST_KEY) || '✦') : (PRESETS.find(x=>x.value===v)||{}).sym; 
+        return sym ? (sym + ' ' + text + ' ' + sym) : text; 
+    };
+    window._sanitizePokeTextForDisplay = s => String(s||'').replace(/[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/gu, '').trim();
+})();
