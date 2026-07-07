@@ -4,7 +4,7 @@
         if (document.getElementById('dm6-style')) return; 
         var s = document.createElement('style');
         s.id = 'dm6-style'; 
-        s.textContent = '/* dm6-style blocked by data-modal v24 */';
+        s.textContent = '/* dm6-style blocked by data-modal v25 */';
         document.head.appendChild(s);
     })();
 
@@ -12,7 +12,7 @@
         '<div class="dm-topbar">'
         +   '<div class="dm-topbar-left">'
         +     '<button class="dm-topbar-back" id="back-data"><i class="fas fa-arrow-left"></i></button>'
-        +     '<span class="dm-topbar-title">数据管理 (纯享智融版 v24)</span>'
+        +     '<span class="dm-topbar-title">数据管理 (纯享智融版 v25)</span>'
         +   '</div>'
         +   '<button class="dm-topbar-close" id="close-data"><i class="fas fa-xmark"></i></button>'
         + '</div>'
@@ -181,7 +181,6 @@
             if(res.success && typeof showNotification === 'function') showNotification('云端极简版备份成功！', 'success');
         },
 
-        // 📥 智能拉取：从 Public 仓库拉回极简数据，智能重组为系统原生格式！
         pullUI: async function() {
             const cfg = this.getConfig();
             let cRepo = this.cleanRepo(cfg.repo);
@@ -201,14 +200,19 @@
                 let msgs = await res.json();
                 if (!Array.isArray(msgs)) throw new Error('云端内容不正确');
                 
-                // 🌟【核心重组】：给拔下来的极简文字，贴上系统必须认识的参数标签！
+                // 🌟【时钟修复核心】：拉取极简版时，自动逆向计算出系统强依赖的 timestamp 字段！
                 let restoredMsgs = msgs.map(function(m) {
+                    let ts = m.timestamp;
+                    if (!ts && m.id && !isNaN(m.id)) {
+                        ts = new Date(Number(m.id)).toISOString(); // 完美修复 Invalid Date
+                    }
                     return {
                         id: m.id,
                         sender: m.sender,
                         type: m.text === '[图片体积过大，已由云端过滤保命 ☁️]' ? 'system' : 'text',
                         content: m.text !== undefined ? m.text : (m.content || ''),
                         text: m.text !== undefined ? m.text : (m.content || ''),
+                        timestamp: ts, 
                         time: m.time || '',
                         replyTo: m.replyTo || null,
                         status: 'read',
@@ -229,7 +233,6 @@
             }
         },
 
-        // 📤 推送纯享版逻辑：剔除一切臃肿，只传核心阅读内容（Private 下畅通无阻）
         push: async function() {
             const cfg = this.getConfig();
             let cToken = this.cleanToken(cfg.token);
@@ -378,7 +381,7 @@
         return mc.querySelector('.dm-topbar') !== null
             && mc.querySelector('.dm-stats-grid') !== null
             && titleEl !== null
-            && titleEl.textContent.indexOf('v24') !== -1
+            && titleEl.textContent.indexOf('v25') !== -1
             && document.getElementById('dm-drawer-full') !== null
             && document.getElementById('dm-drawer-chat') !== null;
     }
@@ -401,14 +404,14 @@
 
     function writeHTML(mc) {
         mc.innerHTML = INNER_HTML;
-        mc.dataset.dm6Built = 'v24'; 
+        mc.dataset.dm6Built = 'v25'; 
         ensureDrawersOnBody();
         bindAll(mc);
     }
 
     function ensureHTML(mc) {
         if (!mc) return;
-        mc.dataset.dm6Built = 'v24'; 
+        mc.dataset.dm6Built = 'v25'; 
         if (!isCorrect(mc)) writeHTML(mc);
         else ensureDrawersOnBody(); 
     }
@@ -493,7 +496,7 @@
                 if (typeof exportChatHistory === 'function') exportChatHistory();
             });
             
-            // 🌟🌟🌟【本地导入终极护盾】：劫持原生按钮，加装自动识别重构滤镜！
+            // 🌟【时钟修复核心】：本地导入时，自动把极简文件还原出 timestamp！
             var importChatReal = chatDrawer.querySelector('#import-chat-btn-real');
             if (importChatReal) importChatReal.addEventListener('click', function () {
                 closeDrawer('dm-drawer-chat');
@@ -509,18 +512,23 @@
                             var msgs = JSON.parse(ev.target.result);
                             if (!Array.isArray(msgs)) throw new Error('这不是有效的聊天记录文件');
                             
-                            // 🌟 核心：给下载下来的极简文件贴上系统必读的标签！
                             var restoredMsgs = msgs.map(function(m) {
-                                // 如果是已经有完整标签的原生文件，原样返回
-                                if (m.status && m.type) return m; 
+                                // 如果自带了完整属性，直接通过
+                                if (m.status && m.type && m.timestamp) return m; 
                                 
-                                // 如果是极简版，自动重构参数
+                                // 🌟 逆推修复时间戳，杜绝 Invalid Date！
+                                let ts = m.timestamp;
+                                if (!ts && m.id && !isNaN(m.id)) {
+                                    ts = new Date(Number(m.id)).toISOString();
+                                }
+                                
                                 return {
                                     id: m.id,
                                     sender: m.sender,
                                     type: m.text === '[图片体积过大，已由云端过滤保命 ☁️]' ? 'system' : 'text',
                                     content: m.text !== undefined ? m.text : (m.content || ''),
                                     text: m.text !== undefined ? m.text : (m.content || ''),
+                                    timestamp: ts, 
                                     time: m.time || '',
                                     replyTo: m.replyTo || null,
                                     status: 'read',
@@ -598,7 +606,7 @@
         if (!modal) return;
 
         var mc = modal.querySelector('.modal-content');
-        if (mc) mc.dataset.dm6Built = 'v24';
+        if (mc) mc.dataset.dm6Built = 'v25';
 
         if (_styleObserver) { _styleObserver.disconnect(); _styleObserver = null; }
         if (_contentObserver) { _contentObserver.disconnect(); _contentObserver = null; }
@@ -613,7 +621,7 @@
             _contentObserver = new MutationObserver(function () {
                 var mc2 = modal.querySelector('.modal-content');
                 if (mc2 && !isCorrect(mc2)) {
-                    mc2.dataset.dm6Built = 'v24';
+                    mc2.dataset.dm6Built = 'v25';
                     writeHTML(mc2);
                 }
             });
