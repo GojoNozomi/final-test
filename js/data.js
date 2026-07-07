@@ -4,7 +4,7 @@
         if (document.getElementById('dm6-style')) return; 
         var s = document.createElement('style');
         s.id = 'dm6-style'; 
-        s.textContent = '/* dm6-style blocked by data-modal v26 */';
+        s.textContent = '/* dm6-style blocked by data-modal v27 */';
         document.head.appendChild(s);
     })();
 
@@ -12,7 +12,7 @@
         '<div class="dm-topbar">'
         +   '<div class="dm-topbar-left">'
         +     '<button class="dm-topbar-back" id="back-data"><i class="fas fa-arrow-left"></i></button>'
-        +     '<span class="dm-topbar-title">数据管理 (纯享智融版 v26)</span>'
+        +     '<span class="dm-topbar-title">数据管理 (终极精简版 v27)</span>'
         +   '</div>'
         +   '<button class="dm-topbar-close" id="close-data"><i class="fas fa-xmark"></i></button>'
         + '</div>'
@@ -29,23 +29,27 @@
         +       '<div class="dm-stat-block"><div class="dm-stat-block-icon" style="color:#9C6FD4"><i class="fas fa-sliders"></i></div><div class="dm-stat-pill-val" id="dm-stat-settings">—</div><div class="dm-stat-pill-key">设置数据</div></div>'
         +       '<div class="dm-stat-block"><div class="dm-stat-block-icon" style="color:#3BC8A4"><i class="fas fa-images"></i></div><div class="dm-stat-pill-val" id="dm-stat-media">—</div><div class="dm-stat-pill-key">图片媒体</div></div>'
         +     '</div>'
-        +     '<div class="dm-progress-track"><div class="dm-progress-fill" id="dm-storage-bar" style="width:0%"></div></div>'
         +   '</div>'
 
         /* ☁️ ========== GitHub 云端记忆库控制中心 ========== ☁️ */
         +   '<div class="dm-section-label" style="color:var(--text-primary);"><i class="fab fa-github"></i> GitHub 云端记忆库</div>'
         +   '<div class="dm-row-card" style="padding:15px; display:flex; flex-direction:column; gap:10px;">'
-        +     '<div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">云端仅保存【护眼纯享版】！私有状态下自动上传；恢复数据时，拉取或本地导入皆可自动重构系统格式！</div>'
+        
+        +     '<div style="font-size:11px;color:var(--text-secondary);line-height:1.6;background:rgba(0,0,0,0.03);padding:10px;border-radius:8px;">'
+        +       '<b>【Private 模式 (日常推荐)】</b>：仅支持将纯文本记录“自动/手动”备份至云端。若需恢复，请去 GitHub 下载对应的 JSON，在下方点击“聊天记录”手动导入。<br>'
+        +       '<div style="margin-top:4px;"><b>【Public 模式 (快捷恢复)】</b>：前往 GitHub 将此仓库 Settings 底部的 Visibility 改为 Public，点击下方“一键恢复”即可还原。<b>⚠ 注意：恢复成功后请立刻改回 Private 防偷窥！</b></div>'
+        +     '</div>'
+        
         +     '<input type="password" id="gh-token" placeholder="输入 GitHub Token (必须具备 repo 权限)" style="padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--primary-bg);color:var(--text-primary);font-size:12px;outline:none;" oninput="window.GitHubSync.saveConfig()">'
         +     '<input type="text" id="gh-repo" placeholder="仓库路径 (如 GojoNozomi/Satoru-Nozomi-Memory)" style="padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--primary-bg);color:var(--text-primary);font-size:12px;outline:none;" oninput="window.GitHubSync.saveConfig()">'
         +     '<input type="text" id="gh-path" placeholder="存储文件名 (如 slim_history.json)" value="chat_history.json" style="padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--primary-bg);color:var(--text-primary);font-size:12px;outline:none;" oninput="window.GitHubSync.saveConfig()">'
         +     '<div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed var(--border-color);padding-top:10px;margin-top:2px;">'
-        +       '<div style="font-size:12px;font-weight:600;"><i class="fas fa-sync" style="color:var(--accent-color);margin-right:6px;"></i>发消息时自动静默同步</div>'
+        +       '<div style="font-size:12px;font-weight:600;"><i class="fas fa-sync" style="color:var(--accent-color);margin-right:6px;"></i>自动备份聊天记录</div>'
         +       '<label class="dm-toggle-pill"><input type="checkbox" id="gh-autosync-toggle" onchange="window.GitHubSync.saveConfig()"><span class="dm-toggle-slider"></span></label>'
         +     '</div>'
         +     '<div style="display:flex;gap:10px;margin-top:6px;">'
-        +       '<button class="modal-btn modal-btn-secondary" onclick="window.GitHubSync.pullUI()" style="flex:1;font-size:12px;padding:8px;"><i class="fas fa-cloud-download-alt"></i> 云端拉取 (需Public)</button>'
-        +       '<button class="modal-btn modal-btn-primary" onclick="window.GitHubSync.pushUI()" style="flex:1;font-size:12px;padding:8px;background:#E07000;border:none;"><i class="fas fa-book-open"></i> 推送纯享版</button>'
+        +       '<button class="modal-btn modal-btn-secondary" onclick="window.GitHubSync.pullUI()" style="flex:1;font-size:12px;padding:8px;"><i class="fas fa-cloud-download-alt"></i> 一键恢复</button>'
+        +       '<button class="modal-btn modal-btn-primary" onclick="window.GitHubSync.pushUI()" style="flex:1;font-size:12px;padding:8px;background:var(--accent-color);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.25);border:none;"><i class="fas fa-cloud-upload-alt"></i> 上传云端</button>'
         +     '</div>'
         +     '<div id="gh-sync-status" style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:4px;">状态：待命</div>'
         +   '</div>'
@@ -60,7 +64,7 @@
         +     '</div>'
         +     '<div class="dm-tile" id="dm-tile-chat-backup">'
         +       '<div class="dm-tile-icon teal"><i class="fas fa-comments"></i></div>'
-        +       '<div class="dm-tile-info"><div class="dm-tile-title">聊天记录</div><div class="dm-tile-desc">导入纯享版自动重构</div></div>'
+        +       '<div class="dm-tile-info"><div class="dm-tile-title">聊天记录</div><div class="dm-tile-desc">导入纯享 JSON 自动重构</div></div>'
         +       '<i class="fas fa-chevron-right dm-tile-arrow"></i>'
         +     '</div>'
         +   '</div>'
@@ -181,7 +185,6 @@
             if(res.success && typeof showNotification === 'function') showNotification('云端极简版备份成功！', 'success');
         },
 
-        // 📥 智能拉取：100% 还原原生对象结构，并按时间线强行排序！
         pullUI: async function() {
             const cfg = this.getConfig();
             let cRepo = this.cleanRepo(cfg.repo);
@@ -201,7 +204,6 @@
                 let msgs = await res.json();
                 if (!Array.isArray(msgs)) throw new Error('云端内容不正确');
                 
-                // 🌟【完美手术】：把一切花里胡哨的自造属性全部砍掉，只留原生八大件！
                 let restoredMsgs = msgs.map(function(m) {
                     let ts = m.timestamp;
                     if (!ts && m.id && !isNaN(m.id)) {
@@ -220,7 +222,6 @@
                     return out;
                 });
 
-                // 🌟【唤醒日期线】：强行按时间戳升序排序，保证日期分割线系统不卡壳！
                 restoredMsgs.sort(function(a, b) { return Number(a.id) - Number(b.id); });
 
                 let storageKey = typeof getStorageKey === 'function' ? getStorageKey('chatMessages') : (this.getPfx() + 'chatMessages');
@@ -364,12 +365,6 @@
                     else if (/avatar|image|photo|bg|background|wallpaper/i.test(k)) media += bytes;
                     else cfg += bytes;
                 }
-                var pct = Math.min(100, total / (5 * 1024 * 1024) * 100);
-                var bar = g('dm-storage-bar');
-                if (bar) {
-                    bar.style.width = pct.toFixed(1) + '%';
-                    bar.style.background = pct > 80 ? 'linear-gradient(90deg,#FF3B30,#CC0000)' : pct > 50 ? 'linear-gradient(90deg,#FF9F0A,#E07000)' : 'linear-gradient(90deg,var(--accent-color),rgba(var(--accent-color-rgb),0.6))';
-                }
                 var totEl = g('dm-storage-total');
                 if (totEl) totEl.textContent = fmt(total) + ' / ~5 MB';
                 if (g('dm-stat-msgs')) g('dm-stat-msgs').textContent = fmt(msgs);
@@ -384,7 +379,7 @@
         return mc.querySelector('.dm-topbar') !== null
             && mc.querySelector('.dm-stats-grid') !== null
             && titleEl !== null
-            && titleEl.textContent.indexOf('v26') !== -1
+            && titleEl.textContent.indexOf('v27') !== -1
             && document.getElementById('dm-drawer-full') !== null
             && document.getElementById('dm-drawer-chat') !== null;
     }
@@ -407,14 +402,14 @@
 
     function writeHTML(mc) {
         mc.innerHTML = INNER_HTML;
-        mc.dataset.dm6Built = 'v26'; 
+        mc.dataset.dm6Built = 'v27'; 
         ensureDrawersOnBody();
         bindAll(mc);
     }
 
     function ensureHTML(mc) {
         if (!mc) return;
-        mc.dataset.dm6Built = 'v26'; 
+        mc.dataset.dm6Built = 'v27'; 
         if (!isCorrect(mc)) writeHTML(mc);
         else ensureDrawersOnBody(); 
     }
@@ -499,7 +494,6 @@
                 if (typeof exportChatHistory === 'function') exportChatHistory();
             });
             
-            // 🌟【本地导入时间戳唤醒重制版】
             var importChatReal = chatDrawer.querySelector('#import-chat-btn-real');
             if (importChatReal) importChatReal.addEventListener('click', function () {
                 closeDrawer('dm-drawer-chat');
@@ -543,7 +537,16 @@
                             if(typeof renderMessages === 'function') renderMessages();
                             if(typeof updateStorageUsageBar === 'function') updateStorageUsageBar();
                             
-                            if(typeof showNotification === 'function') showNotification('导入成功！日期已完美恢复！', 'success');
+                            if(typeof showNotification === 'function') showNotification('导入成功！数据已智能恢复！', 'success');
+                            
+                            // 🚀【核心修复】：强行关闭数据面板，让绿色弹窗无遮挡显示！
+                            var dataModal = document.getElementById('data-modal');
+                            if (dataModal && typeof hideModal === 'function') {
+                                hideModal(dataModal);
+                            } else if (dataModal) {
+                                dataModal.style.display = 'none';
+                                dataModal.classList.remove('open');
+                            }
                         } catch(err) {
                             alert('导入失败: ' + err.message);
                         }
@@ -605,7 +608,7 @@
         if (!modal) return;
 
         var mc = modal.querySelector('.modal-content');
-        if (mc) mc.dataset.dm6Built = 'v26';
+        if (mc) mc.dataset.dm6Built = 'v27';
 
         if (_styleObserver) { _styleObserver.disconnect(); _styleObserver = null; }
         if (_contentObserver) { _contentObserver.disconnect(); _contentObserver = null; }
@@ -620,7 +623,7 @@
             _contentObserver = new MutationObserver(function () {
                 var mc2 = modal.querySelector('.modal-content');
                 if (mc2 && !isCorrect(mc2)) {
-                    mc2.dataset.dm6Built = 'v26';
+                    mc2.dataset.dm6Built = 'v27';
                     writeHTML(mc2);
                 }
             });
