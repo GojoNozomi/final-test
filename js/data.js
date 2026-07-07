@@ -4,7 +4,7 @@
         if (document.getElementById('dm6-style')) return; 
         var s = document.createElement('style');
         s.id = 'dm6-style'; 
-        s.textContent = '/* dm6-style blocked by data-modal v25 */';
+        s.textContent = '/* dm6-style blocked by data-modal v26 */';
         document.head.appendChild(s);
     })();
 
@@ -12,7 +12,7 @@
         '<div class="dm-topbar">'
         +   '<div class="dm-topbar-left">'
         +     '<button class="dm-topbar-back" id="back-data"><i class="fas fa-arrow-left"></i></button>'
-        +     '<span class="dm-topbar-title">数据管理 (纯享智融版 v25)</span>'
+        +     '<span class="dm-topbar-title">数据管理 (纯享智融版 v26)</span>'
         +   '</div>'
         +   '<button class="dm-topbar-close" id="close-data"><i class="fas fa-xmark"></i></button>'
         + '</div>'
@@ -181,6 +181,7 @@
             if(res.success && typeof showNotification === 'function') showNotification('云端极简版备份成功！', 'success');
         },
 
+        // 📥 智能拉取：100% 还原原生对象结构，并按时间线强行排序！
         pullUI: async function() {
             const cfg = this.getConfig();
             let cRepo = this.cleanRepo(cfg.repo);
@@ -200,25 +201,27 @@
                 let msgs = await res.json();
                 if (!Array.isArray(msgs)) throw new Error('云端内容不正确');
                 
-                // 🌟【时钟修复核心】：拉取极简版时，自动逆向计算出系统强依赖的 timestamp 字段！
+                // 🌟【完美手术】：把一切花里胡哨的自造属性全部砍掉，只留原生八大件！
                 let restoredMsgs = msgs.map(function(m) {
                     let ts = m.timestamp;
                     if (!ts && m.id && !isNaN(m.id)) {
-                        ts = new Date(Number(m.id)).toISOString(); // 完美修复 Invalid Date
+                        ts = new Date(Number(m.id)).toISOString(); 
                     }
-                    return {
+                    let out = {
                         id: m.id,
                         sender: m.sender,
-                        type: m.text === '[图片体积过大，已由云端过滤保命 ☁️]' ? 'system' : 'text',
-                        content: m.text !== undefined ? m.text : (m.content || ''),
                         text: m.text !== undefined ? m.text : (m.content || ''),
                         timestamp: ts, 
-                        time: m.time || '',
-                        replyTo: m.replyTo || null,
-                        status: 'read',
-                        favorited: false
+                        status: m.status || (m.sender === 'user' ? 'read' : 'received'),
+                        favorited: m.favorited || false,
+                        note: m.note || null
                     };
+                    if (m.replyTo) out.replyTo = m.replyTo;
+                    return out;
                 });
+
+                // 🌟【唤醒日期线】：强行按时间戳升序排序，保证日期分割线系统不卡壳！
+                restoredMsgs.sort(function(a, b) { return Number(a.id) - Number(b.id); });
 
                 let storageKey = typeof getStorageKey === 'function' ? getStorageKey('chatMessages') : (this.getPfx() + 'chatMessages');
                 await localforage.setItem(storageKey, restoredMsgs);
@@ -381,7 +384,7 @@
         return mc.querySelector('.dm-topbar') !== null
             && mc.querySelector('.dm-stats-grid') !== null
             && titleEl !== null
-            && titleEl.textContent.indexOf('v25') !== -1
+            && titleEl.textContent.indexOf('v26') !== -1
             && document.getElementById('dm-drawer-full') !== null
             && document.getElementById('dm-drawer-chat') !== null;
     }
@@ -404,14 +407,14 @@
 
     function writeHTML(mc) {
         mc.innerHTML = INNER_HTML;
-        mc.dataset.dm6Built = 'v25'; 
+        mc.dataset.dm6Built = 'v26'; 
         ensureDrawersOnBody();
         bindAll(mc);
     }
 
     function ensureHTML(mc) {
         if (!mc) return;
-        mc.dataset.dm6Built = 'v25'; 
+        mc.dataset.dm6Built = 'v26'; 
         if (!isCorrect(mc)) writeHTML(mc);
         else ensureDrawersOnBody(); 
     }
@@ -496,7 +499,7 @@
                 if (typeof exportChatHistory === 'function') exportChatHistory();
             });
             
-            // 🌟【时钟修复核心】：本地导入时，自动把极简文件还原出 timestamp！
+            // 🌟【本地导入时间戳唤醒重制版】
             var importChatReal = chatDrawer.querySelector('#import-chat-btn-real');
             if (importChatReal) importChatReal.addEventListener('click', function () {
                 closeDrawer('dm-drawer-chat');
@@ -513,28 +516,24 @@
                             if (!Array.isArray(msgs)) throw new Error('这不是有效的聊天记录文件');
                             
                             var restoredMsgs = msgs.map(function(m) {
-                                // 如果自带了完整属性，直接通过
-                                if (m.status && m.type && m.timestamp) return m; 
-                                
-                                // 🌟 逆推修复时间戳，杜绝 Invalid Date！
                                 let ts = m.timestamp;
                                 if (!ts && m.id && !isNaN(m.id)) {
                                     ts = new Date(Number(m.id)).toISOString();
                                 }
-                                
-                                return {
+                                let out = {
                                     id: m.id,
                                     sender: m.sender,
-                                    type: m.text === '[图片体积过大，已由云端过滤保命 ☁️]' ? 'system' : 'text',
-                                    content: m.text !== undefined ? m.text : (m.content || ''),
                                     text: m.text !== undefined ? m.text : (m.content || ''),
                                     timestamp: ts, 
-                                    time: m.time || '',
-                                    replyTo: m.replyTo || null,
-                                    status: 'read',
-                                    favorited: false
+                                    status: m.status || (m.sender === 'user' ? 'read' : 'received'),
+                                    favorited: m.favorited || false,
+                                    note: m.note || null
                                 };
+                                if (m.replyTo) out.replyTo = m.replyTo;
+                                return out;
                             });
+                            
+                            restoredMsgs.sort(function(a, b) { return Number(a.id) - Number(b.id); });
                             
                             let pfx = typeof window.APP_PREFIX !== 'undefined' ? window.APP_PREFIX : 'CHAT_APP_V3_';
                             let storageKey = typeof getStorageKey === 'function' ? getStorageKey('chatMessages') : (pfx + 'chatMessages');
@@ -544,7 +543,7 @@
                             if(typeof renderMessages === 'function') renderMessages();
                             if(typeof updateStorageUsageBar === 'function') updateStorageUsageBar();
                             
-                            if(typeof showNotification === 'function') showNotification('导入成功！数据已智能恢复！', 'success');
+                            if(typeof showNotification === 'function') showNotification('导入成功！日期已完美恢复！', 'success');
                         } catch(err) {
                             alert('导入失败: ' + err.message);
                         }
@@ -606,7 +605,7 @@
         if (!modal) return;
 
         var mc = modal.querySelector('.modal-content');
-        if (mc) mc.dataset.dm6Built = 'v25';
+        if (mc) mc.dataset.dm6Built = 'v26';
 
         if (_styleObserver) { _styleObserver.disconnect(); _styleObserver = null; }
         if (_contentObserver) { _contentObserver.disconnect(); _contentObserver = null; }
@@ -621,7 +620,7 @@
             _contentObserver = new MutationObserver(function () {
                 var mc2 = modal.querySelector('.modal-content');
                 if (mc2 && !isCorrect(mc2)) {
-                    mc2.dataset.dm6Built = 'v25';
+                    mc2.dataset.dm6Built = 'v26';
                     writeHTML(mc2);
                 }
             });
