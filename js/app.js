@@ -1,3 +1,7 @@
+// 🤫 强行注入空函数代理，彻底封印 listeners.js 找不到 onboarding 导致的红字报错
+window.setupTutorialListeners = function() {};
+window.startTour = function() {};
+
 document.addEventListener('DOMContentLoaded', async () => {
     const loaderBar = document.getElementById('loader-tech-bar');
     const welcomeSubtitle = document.querySelector('.welcome-subtitle-scramble');
@@ -30,22 +34,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 🌟【外链自动更新大炮】：每次启动强行清洗本地脏缓存，拉取 Gist 最新配置
+    // 🌟 全自动动态同步大炮：网页启动时自动剥离旧内存，强行同步 Gist 最新外链
     async function injectGistStickers() {
         try {
             /* 🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
-               【老婆大人请注意！以后如果需要更新或者更换表情包的 Gist 网址，只需要修改下面这一行的链接即可！】
+               【更 换 表 情 包 Gist 网 址 的 位 置】：以后有更新直接修改下面这一行的链接即可！
                🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟 */
             let myStickerGistUrl = 'https://gist.githubusercontent.com/yvainewen/9ed769a74214b6b52f5dd44b2bb4638c/raw/643035cab3e43d47955d8fe9987c3bede3b9e023/stickers.json';
             
-            // cache: 'no-store' 强行粉碎浏览器缓存，实现云端 Gist 一改，网页刷新自动更新！
             let response = await fetch(myStickerGistUrl, { cache: 'no-store' }); 
             if (response.ok) {
                 let list = await response.json();
                 if (Array.isArray(list)) {
                     let cleanList = list.map(img => typeof img === 'string' ? img.trim() : (img.url || '')).filter(img => img.startsWith('http'));
                     
-                    // 彻底置空本地旧数据，防冲突与闪烁
                     window.stickerLibrary = [];
                     window.myStickerLibrary = [];
                     
@@ -54,11 +56,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (typeof stickerLibrary !== 'undefined') stickerLibrary = cleanList;
                     if (typeof myStickerLibrary !== 'undefined') myStickerLibrary = cleanList;
                     
-                    console.log('✓ 跨设备无感同步：已成功拉取最新 Gist 表情库，当前共计 ' + cleanList.length + ' 个！');
+                    console.log('✓ 赛博记忆：已成功同步 Gist 永久外链表情库，共计 ' + cleanList.length + ' 个！');
                 }
             }
         } catch(e) {
-            console.warn('Gist 外链自动同步失败，启动备用机制:', e);
+            console.warn('Gist 外链自动同步失败，启动备用空库防止闪退:', e);
         }
     }
 
@@ -87,12 +89,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateLoader('正在读取记忆存档...', '40%');
         await safeAwait(loadData());
 
-        // 🚀 核心同步锚点：在记忆库读取完之后、画面出来之前，全自动无缝灌入外链表情
-        updateLoader('正在全自动同步 Gist 永久外链表情库...', '60%');
+        updateLoader('正在自动同步 Gist 永久表情库...', '60%');
         await injectGistStickers();
 
         updateLoader('正在渲染我们的世界...', '80%');
-        
         await Promise.allSettled([
             safeAwait(initializeRandomUI?.())
         ]);
@@ -101,16 +101,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (disclaimerModal) {
             const tourSeen = await safeAwait(localforage?.getItem(APP_PREFIX + 'tour_seen'), false);
-            
             if (!tourSeen) {
                 showModal(disclaimerModal);
-                
                 if (acceptDisclaimerBtn && !acceptDisclaimerBtn._bound) {
                     acceptDisclaimerBtn._bound = true;
                     acceptDisclaimerBtn.addEventListener('click', () => {
                         hideModal(disclaimerModal);
                         localforage?.setItem(APP_PREFIX + 'tour_seen', true).catch(() => {});
-                        startTour?.();
+                        if (typeof startTour === 'function') startTour();
                     }, { once: true });
                 }
             }
@@ -121,53 +119,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
-                try {
-                    if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
-                } catch (e) {}
+                try { if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout); } catch (e) {}
                 try { _backupCriticalData(); } catch (e) { console.warn('[visibilitychange] 紧急备份失败:', e); }
                 try {
                     const p = saveData();
                     if (p && typeof p.catch === 'function') {
                         p.catch(e => console.error('[visibilitychange] 保存失败:', e));
                     }
-                } catch (e) {
-                    console.error('[visibilitychange] 保存失败:', e);
-                }
+                } catch (e) { console.error('[visibilitychange] 保存失败:', e); }
             } else if (document.visibilityState === 'visible') {
                 try {
                     const backup = typeof _tryRecoverFromBackup === 'function' ? _tryRecoverFromBackup() : null;
                     if (backup && Array.isArray(backup.messages) && backup.messages.length > 0 && Array.isArray(messages) && backup.messages.length > messages.length) {
                         console.warn('[visibilitychange] 检测到备份消息比当前更多，自动尝试恢复');
                         try {
-                            messages = backup.messages.map(m => ({
-                                ...m,
-                                timestamp: new Date(m.timestamp)
-                            }));
+                            messages = backup.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
                             if (backup.settings) Object.assign(settings, backup.settings);
                             if (typeof updateUI === 'function') updateUI();
                             if (typeof throttledSaveData === 'function') throttledSaveData();
                             showNotification('已自动恢复本地临时备份内容', 'warning', 3500);
-                        } catch (restoreErr) {
-                            console.warn('[visibilitychange] 自动恢复失败，保留当前页面内容:', restoreErr);
-                        }
+                        } catch (restoreErr) { console.warn('[visibilitychange] 自动恢复失败:', restoreErr); }
                     }
-                } catch (e) {
-                    console.warn('[visibilitychange] 恢复备份失败:', e);
-                }
+                } catch (e) { console.warn('[visibilitychange] 恢复备份失败:', e); }
             }
         });
 
-        window.addEventListener('pagehide', () => {
-            try { _backupCriticalData(); } catch (e) {}
-        });
+        window.addEventListener('pagehide', () => { try { _backupCriticalData(); } catch (e) {} });
+        window.addEventListener('beforeunload', () => { try { _backupCriticalData(); } catch (e) {} });
 
-        window.addEventListener('beforeunload', () => {
-            try { _backupCriticalData(); } catch (e) {}
-        });
-
-        setInterval(() => {
-            saveData().catch(e => console.warn('[autoBackup] 定时保存失败:', e));
-        }, 3 * 60 * 1000);
+        setInterval(() => { saveData().catch(e => console.warn('[autoBackup] 定时保存失败:', e)); }, 3 * 60 * 1000);
 
         (() => {
             const REMIND_KEY = 'exportReminderLastShown';
@@ -188,9 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (permission === 'granted') {
                         showNotification('已开启系统通知，收到消息时会提醒你', 'success', 3000);
                     }
-                } catch(e) {
-                    console.warn('通知权限请求失败:', e);
-                }
+                } catch(e) { console.warn('通知权限请求失败:', e); }
             }
         }, 3000);
 
@@ -201,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 🚀 改造：劫持原本的添加按钮，变成无缝追加临时外链（不占内存）
+// 🚀 追加按钮外链化劫持
 const stickerInput = document.getElementById('sticker-file-input');
 if (stickerInput) {
     stickerInput.addEventListener('click', async (e) => {
@@ -248,7 +226,7 @@ window.addEventListener('load', function() {
     }, 4500);
 }, { once: true });
 
-// 🚀 安全修补：将原本被字数截断的戳一戳核心装饰逻辑进行完美缝合补齐
+// 🚀 戳一戳双向包裹器
 (function() {
     var MY_SYM_KEY   = 'pokeSym_my'; var PTR_SYM_KEY  = 'pokeSym_partner';
     var MY_CUST_KEY  = 'pokeSym_my_custom'; var PTR_CUST_KEY = 'pokeSym_partner_custom';
@@ -271,3 +249,10 @@ window.addEventListener('load', function() {
     };
     window._sanitizePokeTextForDisplay = s => String(s||'').replace(/[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/gu, '').trim();
 })();
+
+// 🚀 给原生遗留全局变量进行硬核托底防死锁
+if (typeof safeGetItem === 'undefined') {
+    window.safeGetItem = function(k) { try{return localStorage.getItem(k)}catch(e){return null} };
+    window.safeSetItem = function(k,v) { try{localStorage.setItem(k,typeof v==='object'?JSON.stringify(v):v)}catch(e){} };
+    window.safeRemoveItem = function(k) { try{localStorage.removeItem(k)}catch(e){} };
+}
