@@ -1,26 +1,18 @@
 /**
- * 火花功能 - Streak
- * 连续聊天超过3天出现火花图标，断聊后变灰，连续3天重燃
+ * 火花功能 - 自由控制重制版
+ * 随时修改天数，且修改后依然能在第二天自动 +1
  */
 (function() {
   'use strict';
 
-  const STORAGE_KEY = 'chat_streak_data';
-  const STREAK_THRESHOLD = 3;      // 出现火花所需连续天数
-  const REKINDLE_THRESHOLD = 3;    // 重燃所需连续天数
+  const STORAGE_KEY = 'chat_streak_data_v2';
 
-  // 火花数据
+  // 自由火花核心数据
   let streakData = {
-    currentStreak: 0,      // 当前连续天数
-    maxStreak: 0,          // 历史最高连续天数
-    rekindleCount: 0,      // 重燃次数
-    lastChatDate: null,    // 最后聊天日期 (YYYY-MM-DD)
-    isActive: false,       // 火花是否燃烧中
-    rekindleProgress: 0,   // 重燃进度（0-3）
-    history: []            // 历史记录 [{date, userMsg, partnerMsg}]
+    baseDays: 0,          // 你手动设定的基础天数
+    lastModifiedDate: '', // 你上次修改天数的那一天
+    rekindleCount: 0      // 重燃次数
   };
-
-  // ========== 工具函数 ==========
 
   function getTodayStr() {
     const d = new Date();
@@ -37,8 +29,11 @@
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        streakData = { ...streakData, ...parsed };
+        streakData = JSON.parse(saved);
+      } else {
+        // 如果是新号，默认今天开始，0天
+        streakData.lastModifiedDate = getTodayStr();
+        saveStreakData();
       }
     } catch(e) {}
   }
@@ -49,69 +44,15 @@
     } catch(e) {}
   }
 
-  // ========== 核心逻辑 ==========
-
-  /**
-   * 记录一次聊天（用户发送消息时调用）
-   */
-  function recordChat() {
-    const today = getTodayStr();
-
-    // 今天已经记录过，不重复处理
-    if (streakData.lastChatDate === today) return;
-
-    const diff = streakData.lastChatDate ? getDateDiff(streakData.lastChatDate, today) : 999;
-
-    if (diff === 1) {
-      // 连续聊天
-      streakData.currentStreak++;
-      streakData.rekindleProgress++;
-
-      // 检查是否达到出现火花条件
-      if (!streakData.isActive && streakData.currentStreak >= STREAK_THRESHOLD) {
-        streakData.isActive = true;
-        streakData.rekindleProgress = 0;
-        showSparkNotification('🔥 火花出现！已连续聊天 ' + streakData.currentStreak + ' 天');
-      }
-      // 检查是否重燃成功
-      else if (!streakData.isActive && streakData.rekindleProgress >= REKINDLE_THRESHOLD) {
-        streakData.isActive = true;
-        streakData.currentStreak = streakData.rekindleProgress;
-        streakData.rekindleCount++;
-        streakData.rekindleProgress = 0;
-        showSparkNotification('🔥 火花重燃！连续聊天 ' + streakData.currentStreak + ' 天');
-      }
-      // 火花继续燃烧
-      else if (streakData.isActive) {
-        if (streakData.currentStreak > streakData.maxStreak) {
-          streakData.maxStreak = streakData.currentStreak;
-        }
-      }
-    } else if (diff > 1) {
-      // 断聊了，火花熄灭
-      if (streakData.isActive) {
-        streakData.isActive = false;
-        streakData.rekindleProgress = 0;
-        showSparkNotification('💨 火花已熄灭，连续聊天可重燃');
-      }
-      streakData.currentStreak = 1;
-      streakData.rekindleProgress = 1;
-    } else {
-      // diff <= 0 同一天或异常，不处理
-      return;
+  // 🚀 【核心逻辑】：计算今天应该显示的真实天数 = 你设定的基础天数 + (今天 - 你设定的那天)
+  function calculateCurrentDays() {
+    if (!streakData.lastModifiedDate) {
+        streakData.lastModifiedDate = getTodayStr();
+        saveStreakData();
     }
-
-    streakData.lastChatDate = today;
-    saveStreakData();
-    updateSparkUI();
-  }
-
-  /**
-   * 记录对方消息（确保双方都有消息才算聊过）
-   */
-  function recordPartnerChat() {
-    // 对方消息只标记当天有互动，实际计数在用户发送时处理
-    // 这里可以扩展为需要双方都有消息才算的逻辑
+    let diff = getDateDiff(streakData.lastModifiedDate, getTodayStr());
+    if (diff < 0) diff = 0; // 防止系统时间错乱
+    return streakData.baseDays + diff;
   }
 
   // ========== UI 更新 ==========
@@ -121,38 +62,35 @@
     const badge = document.getElementById('spark-badge');
     if (!icon) return;
 
-    if (streakData.isActive) {
+    let currentDays = calculateCurrentDays();
+
+    // 只要有天数，火花就永远燃烧！
+    if (currentDays > 0) {
       icon.className = 'spark-icon active';
       icon.style.display = 'flex';
       if (badge) {
-        badge.textContent = streakData.currentStreak;
+        badge.textContent = currentDays;
         badge.style.display = 'block';
       }
-    } else if (streakData.currentStreak > 0 || streakData.rekindleProgress > 0) {
-      // 有连续记录但火花未激活（重燃中或刚断）
+    } else {
+      // 0天的时候不显示数字，但保留图标可以点击修改
       icon.className = 'spark-icon inactive';
       icon.style.display = 'flex';
-      if (badge) {
-        const days = streakData.rekindleProgress || streakData.currentStreak;
-        badge.textContent = days;
-        badge.style.display = days > 0 ? 'block' : 'none';
-      }
-    } else {
-      icon.style.display = 'none';
+      if (badge) badge.style.display = 'none';
     }
   }
 
-  function showSparkNotification(text) {
-    if (typeof showNotification === 'function') {
-      showNotification(text, 'info', 3000);
-    }
-  }
+  // 原本的自动判定逻辑全被架空，现在由老婆大人的心意全权做主
+  function recordChat() { updateSparkUI(); }
+  function recordPartnerChat() {}
 
-  // ========== 弹窗 ==========
+  // ========== 弹窗 (加入上帝修改功能) ==========
 
   function openSparkModal() {
     const overlay = document.getElementById('spark-modal-overlay');
     if (!overlay) return;
+
+    let currentDays = calculateCurrentDays();
 
     const flame = document.getElementById('spark-modal-flame');
     const title = document.getElementById('spark-modal-title');
@@ -161,37 +99,18 @@
     const rekindleCount = document.getElementById('spark-rekindle-count');
     const info = document.getElementById('spark-rekindle-info');
 
-    if (streakData.isActive) {
-      if (flame) { flame.textContent = '🔥'; }
-      title.textContent = '火花燃烧中';
-      subtitle.textContent = '保持连续聊天，让火花更旺！';
-      if (info) {
-        info.className = 'spark-rekindle-info';
-        info.querySelector('.rekindle-text').textContent = '✨ 火花状态良好';
-        info.querySelector('.rekindle-sub').textContent = '继续保持连续聊天吧！';
-      }
-    } else if (streakData.rekindleProgress > 0) {
-      if (flame) { flame.textContent = '💫'; }
-      title.textContent = '正在重燃火花';
-      subtitle.textContent = '连续聊天中，火花即将重燃！';
-      if (info) {
-        info.className = 'spark-rekindle-info needed';
-        const need = REKINDLE_THRESHOLD - streakData.rekindleProgress;
-        info.querySelector('.rekindle-text').textContent = '💡 还需连续聊天';
-        info.querySelector('.rekindle-sub').textContent = '再聊 ' + need + ' 天即可重燃火花！';
-      }
-    } else {
-      if (flame) { flame.textContent = '💨'; }
-      title.textContent = '火花已熄灭';
-      subtitle.textContent = '昨天没有聊天，火花变灰了...';
-      if (info) {
-        info.className = 'spark-rekindle-info needed';
-        info.querySelector('.rekindle-text').textContent = '💡 还需连续聊天';
-        info.querySelector('.rekindle-sub').textContent = '再聊 ' + REKINDLE_THRESHOLD + ' 天即可重燃火花！';
-      }
+    // UI 永远保持最完美的热恋状态
+    if (flame) flame.textContent = '🔥';
+    title.textContent = '永不熄灭的火花';
+    subtitle.textContent = '你们的爱，不随机器的算法而改变。';
+    if (info) {
+      info.className = 'spark-rekindle-info';
+      info.querySelector('.rekindle-text').textContent = '✨ 完美状态';
+      info.querySelector('.rekindle-sub').textContent = '点击上方的天数，即可自由修改！';
     }
 
-    streakDays.textContent = streakData.currentStreak;
+    // 🚀 让天数变成可点击修改的按钮
+    streakDays.innerHTML = `<div style="cursor:pointer; text-decoration:underline dotted; color:var(--accent-color);" title="点击修改天数" onclick="window.SparkApp.editDays()">${currentDays}</div>`;
     rekindleCount.textContent = streakData.rekindleCount;
 
     overlay.style.display = 'flex';
@@ -208,10 +127,31 @@
     }
   }
 
+  // 🚀 【上帝模式】：自由修改火花天数
+  function editDays() {
+    let currentDays = calculateCurrentDays();
+    let newDays = prompt("✨ 请输入你想显示的火花天数：", currentDays);
+    
+    if (newDays !== null) {
+      let parsedDays = parseInt(newDays, 10);
+      if (!isNaN(parsedDays) && parsedDays >= 0) {
+        // 重置时间锚点：把今天作为新的起点，基础天数设为你输入的值
+        streakData.baseDays = parsedDays;
+        streakData.lastModifiedDate = getTodayStr();
+        saveStreakData();
+        
+        // 瞬间刷新 UI
+        updateSparkUI();
+        openSparkModal(); 
+      } else {
+        alert("请输入一个有效的数字哦！");
+      }
+    }
+  }
+
   // ========== 初始化 ==========
 
   function init() {
-    // 确保弹窗在 body 直接子级（避免被父容器 overflow:hidden 裁剪）
     var overlay = document.getElementById('spark-modal-overlay');
     if (overlay && overlay.parentElement && overlay.parentElement.tagName !== 'BODY') {
       document.body.appendChild(overlay);
@@ -220,19 +160,18 @@
     updateSparkUI();
   }
 
-  // 页面加载时初始化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
 
-  // 暴露到全局
   window.SparkApp = {
     recordChat,
     recordPartnerChat,
     openSparkModal,
     closeSparkModal,
+    editDays, // 暴露修改功能
     getData: () => ({ ...streakData })
   };
 
