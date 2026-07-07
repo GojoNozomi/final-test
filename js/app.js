@@ -48,13 +48,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (Array.isArray(list)) {
                     let cleanList = list.map(img => typeof img === 'string' ? img.trim() : (img.url || '')).filter(img => img.startsWith('http'));
                     
-                    window.stickerLibrary = [];
-                    window.myStickerLibrary = [];
+                    // 🔥【物理防爆安全锁】：采用原地清空再推入的方式，完美避开 const 带来的赋值死锁报错
+                    if (typeof stickerLibrary !== 'undefined' && Array.isArray(stickerLibrary)) {
+                        stickerLibrary.length = 0;
+                        stickerLibrary.push(...cleanList);
+                    } else {
+                        window.stickerLibrary = cleanList;
+                    }
+
+                    if (typeof myStickerLibrary !== 'undefined' && Array.isArray(myStickerLibrary)) {
+                        myStickerLibrary.length = 0;
+                        myStickerLibrary.push(...cleanList);
+                    } else {
+                        window.myStickerLibrary = cleanList;
+                    }
                     
-                    window.stickerLibrary = cleanList;
-                    window.myStickerLibrary = cleanList;
-                    if (typeof stickerLibrary !== 'undefined') stickerLibrary = cleanList;
-                    if (typeof myStickerLibrary !== 'undefined') myStickerLibrary = cleanList;
+                    // 挂载全局影子代理
+                    window._stickerLibrary = window.stickerLibrary;
                     
                     console.log('✓ 赛博记忆：已成功同步 Gist 永久外链表情库，共计 ' + cleanList.length + ' 个！');
                 }
