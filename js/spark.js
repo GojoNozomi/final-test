@@ -1,11 +1,10 @@
 /**
- * 火花功能 - 终极自由挂件版 v29
- * 支持换标、自定义标签文字、完美跟随全量备份同步
+ * 火花功能 - 纪念日纯净装饰版 v30
+ * 标题改为“纪念日”，增加一键重置装饰功能，保留天数
  */
 (function() {
   'use strict';
 
-  // 🚀 获取皇家前缀，确保火花数据能被“全量备份”抓取到！
   function getPfx() { return (typeof window.APP_PREFIX !== 'undefined' ? window.APP_PREFIX : 'CHAT_APP_V3_'); }
   const STORAGE_KEY = getPfx() + 'custom_spark_v5';
 
@@ -18,10 +17,10 @@
     dreamBase: 0, 
     dreamDate: '',
     iconVal: '🔥',      // 默认图标
-    size: 1.0,        // 大小比例 0.5 - 4.0
-    opacity: 1.0,     // 透明度 0.1 - 1.0
-    drag: false,      // 是否开启自由摆放
-    x: '', y: ''      // 摆放的坐标
+    size: 1.0,        
+    opacity: 1.0,     
+    drag: false,      
+    x: '', y: ''      
   };
 
   function getTodayStr() {
@@ -171,7 +170,6 @@
 
   // ========== UI 弹窗构建 ==========
 
-  // 动态注入修补开关颜色的极简 CSS
   (function injectToggleFix() {
       if (document.getElementById('spark-toggle-fix')) return;
       const s = document.createElement('style');
@@ -200,7 +198,7 @@
 
     modalBox.innerHTML = `
       <div style="text-align:center; font-size:18px; font-weight:bold; margin-bottom:15px; color:var(--text-primary);">
-        ✨ 专属装饰与双历
+        纪念日
       </div>
 
       <div style="display:flex; justify-content:space-around; background:rgba(var(--accent-color-rgb), 0.08); border:1px solid var(--accent-color); border-radius:12px; padding:15px; margin-bottom:20px;">
@@ -218,8 +216,6 @@
       </div>
 
       <div style="border-top:1px dashed var(--border-color); padding-top:15px; text-align:left;">
-          <div style="font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:10px;"><i class="fas fa-magic"></i> 挂件控制台</div>
-          
           <div style="font-size:11px; color:var(--text-secondary); margin-bottom:6px;">更换图标 (支持 Emoji 或 图片链接)</div>
           <div style="display:flex; gap:8px; margin-bottom:15px;">
               <input id="custom-icon-input" value="${config.iconVal}" placeholder="🔥 或 https://..." style="flex:1; padding:8px; background:var(--primary-bg); color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; font-size:12px; outline:none;">
@@ -236,9 +232,15 @@
               <input type="range" min="0.1" max="1.0" step="0.1" value="${config.opacity}" style="flex:1; accent-color:var(--accent-color);" oninput="window.SparkApp.liveOpacity(this.value)" onchange="window.SparkApp.saveOpacity(this.value)">
           </div>
 
-          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--text-primary); margin-bottom:5px; background:rgba(0,0,0,0.03); padding:10px; border-radius:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--text-primary); margin-bottom:10px; background:rgba(0,0,0,0.03); padding:10px; border-radius:8px;">
               <span style="font-weight:bold;">开启自由拖拽摆放</span>
               <label class="dm-toggle-pill"><input type="checkbox" class="spark-modal-toggle-input" ${config.drag ? 'checked' : ''} onchange="window.SparkApp.toggleDrag(this.checked)"><span class="dm-toggle-slider"></span></label>
+          </div>
+
+          <div style="text-align:center; margin-top:5px;">
+             <button onclick="window.SparkApp.resetDecorations()" style="background:transparent; color:var(--text-secondary); border:1px dashed var(--border-color); border-radius:6px; padding:6px 12px; font-size:11px; cursor:pointer; transition:all 0.2s;">
+               <i class="fas fa-undo"></i> 一键重置花里胡哨
+             </button>
           </div>
       </div>
 
@@ -260,7 +262,19 @@
 
   // ========== 控制交互方法 ==========
 
-  // 🚀 新增：编辑标题文字
+  // 🚀 一键重置花里胡哨（绝不动天数）
+  function resetDecorations() {
+    config.iconVal = '🔥';
+    config.size = 1.0;
+    config.opacity = 1.0;
+    config.drag = false;
+    config.x = '';
+    config.y = '';
+    saveConfig();
+    updateIconUI();
+    openSparkModal(); // 刷新弹窗 UI
+  }
+
   function editLoveLabel() {
     let val = prompt("✨ 请输入左侧面板的称号：", config.loveLabel);
     if (val !== null && val.trim() !== '') {
@@ -357,9 +371,10 @@
   window.SparkApp = {
     recordChat, recordPartnerChat,
     openSparkModal, closeSparkModal,
-    editLoveLabel, editDreamLabel, // 新增的文字编辑
+    editLoveLabel, editDreamLabel, 
     editLove, editDream,
-    saveIcon, liveScale, saveScale, liveOpacity, saveOpacity, toggleDrag
+    saveIcon, liveScale, saveScale, liveOpacity, saveOpacity, toggleDrag,
+    resetDecorations // 暴露重置方法
   };
 
 })();
