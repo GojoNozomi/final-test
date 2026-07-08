@@ -47,14 +47,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (response.ok) {
                 let list = await response.json();
                 
-                // 超级智能清洗透镜：自动兼容解构【纯字符串数组】或【带url/link/src的对象数组】
+                // 🎯【核心修复】：精准狙击 "u" 键，完美兼容老版 Mufy 格式的表情包外链
                 let cleanList = [];
                 if (Array.isArray(list)) {
                     cleanList = list.map(item => {
                         if (typeof item === 'string') return item.trim();
-                        if (item && typeof item === 'object') return item.url || item.link || item.src || '';
+                        if (item && typeof item === 'object') {
+                            return item.u || item.url || item.link || item.src || '';
+                        }
                         return '';
-                    }).filter(url => url.startsWith('http'));
+                    }).filter(url => url && url.startsWith('http'));
                 }
                 
                 // 🔥【物理防爆安全锁】：采用原地清空再推入的方式，完美避开 const 带来的赋值死锁报错
