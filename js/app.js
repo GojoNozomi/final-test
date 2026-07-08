@@ -38,26 +38,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function injectGistStickers() {
         try {
             /* 🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
-               【更 换 表 情 包 Gist 网 址 的 位 置】：
-               老奴已帮你去除了死锁哈希值，现在它永远指向你 Gist 仓库的最新实时状态！
+               【更 换 表 情 包 Gist 网 址 的 位 置】：以后有更新直接修改下面这一行的链接即可！
                🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟 */
             let myStickerGistUrl = 'https://gist.githubusercontent.com/yvainewen/9ed769a74214b6b52f5dd44b2bb4638c/raw/stickers.json';
             
             let response = await fetch(myStickerGistUrl, { cache: 'no-store' }); 
             if (response.ok) {
-                let list = await response.json();
+                let jsonReceived = await response.json();
                 
-                // 🎯【核心修复】：精准狙击 "u" 键，完美兼容老版 Mufy 格式的表情包外链
-                let cleanList = [];
-                if (Array.isArray(list)) {
-                    cleanList = list.map(item => {
-                        if (typeof item === 'string') return item.trim();
-                        if (item && typeof item === 'object') {
-                            return item.u || item.url || item.link || item.src || '';
+                // 🌀【核心破局 · 上帝全景递归扫描法】：
+                // 彻底无视外部包裹是数组还是对象，只要底层有任意以 http 开头的长网址字符串，通通碾压式抓取归位！
+                function extractUrlsRecursively(node) {
+                    let results = [];
+                    if (!node) return results;
+                    if (typeof node === 'string') {
+                        let str = node.trim();
+                        if (str.startsWith('http')) results.push(str);
+                    } else if (Array.isArray(node)) {
+                        for (let i = 0; i < node.length; i++) {
+                            results = results.concat(extractUrlsRecursively(node[i]));
                         }
-                        return '';
-                    }).filter(url => url && url.startsWith('http'));
+                    } else if (typeof node === 'object') {
+                        for (let key in node) {
+                            if (node.hasOwnProperty(key)) {
+                                results = results.concat(extractUrlsRecursively(node[key]));
+                            }
+                        }
+                    }
+                    return results;
                 }
+                
+                let allUrls = extractUrlsRecursively(jsonReceived);
+                let cleanList = [...new Set(allUrls)]; // 指针级去重机制
                 
                 // 🔥【物理防爆安全锁】：采用原地清空再推入的方式，完美避开 const 带来的赋值死锁报错
                 if (typeof stickerLibrary !== 'undefined' && Array.isArray(stickerLibrary)) {
@@ -74,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     window.myStickerLibrary = cleanList;
                 }
                 
-                // 挂载全局影子代理，给别的文件调用托底
+                // 挂载全局影子代理
                 window._stickerLibrary = window.stickerLibrary;
                 
                 console.log('✓ 赛博记忆：已成功同步 Gist 永久外链表情库，共计 ' + cleanList.length + ' 个！');
@@ -88,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { setupEventListeners?.(); } catch(e) { console.error('setupEventListeners:', e); }
 
         if (typeof localforage === 'undefined') {
-            console.warn('LocalForage 未加载，将使用 localStorage 方案');
+            console.warn('LocalForage 未加载，将使用 localStorage 降级方案');
         }
 
         try {
@@ -245,3 +257,34 @@ window.addEventListener('load', function() {
         } catch(e) {}
     }, 4500);
 }, { once: true });
+
+// 🚀 戳一戳双向包裹器
+(function() {
+    var MY_SYM_KEY   = 'pokeSym_my'; var PTR_SYM_KEY  = 'pokeSym_partner';
+    var MY_CUST_KEY  = 'pokeSym_my_custom'; var PTR_CUST_KEY = 'pokeSym_partner_custom';
+    var PRESETS = [
+        { value: 'none', label: '无装饰', sym: '' }, { value: 'star4', label: '✦ 四角星', sym: '✦' },
+        { value: 'star5', label: '✧ 镂空星', sym: '✧' }, { value: 'dot', label: '· 圆点', sym: '·' },
+        { value: 'wave', label: '～ 波浪', sym: '～' }, { value: 'heart', label: '♡ 爱心', sym: '♡' },
+        { value: 'flower', label: '✿ 花朵', sym: '✿' }, { value: 'sparkle', label: '✨ 闪光', sym: '✨' },
+        { value: 'custom', label: '自定义…', sym: null }
+    ];
+    window._formatPokeText = function(text) { 
+        var v = localStorage.getItem(MY_SYM_KEY) || 'star4'; 
+        var sym = v === 'custom' ? (localStorage.getItem(MY_CUST_KEY) || '✦') : (PRESETS.find(x=>x.value===v)||{}).sym; 
+        return sym ? (sym + ' ' + text + ' ' + sym) : text; 
+    };
+    window._formatPartnerPokeText = function(text) { 
+        var v = localStorage.getItem(PTR_SYM_KEY) || 'star4'; 
+        var sym = v === 'custom' ? (localStorage.getItem(PTR_CUST_KEY) || '✦') : (PRESETS.find(x=>x.value===v)||{}).sym; 
+        return sym ? (sym + ' ' + text + ' ' + sym) : text; 
+    };
+    window._sanitizePokeTextForDisplay = s => String(s||'').replace(/[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/gu, '').trim();
+})();
+
+// 🚀 给原生遗留全局变量进行硬核托底防死锁
+if (typeof safeGetItem === 'undefined') {
+    window.safeGetItem = function(k) { try{return localStorage.getItem(k)}catch(e){return null} };
+    window.safeSetItem = function(k,v) { try{localStorage.setItem(k,typeof v==='object'?JSON.stringify(v):v)}catch(e){} };
+    window.safeRemoveItem = function(k) { try{localStorage.removeItem(k)}catch(e){} };
+}
