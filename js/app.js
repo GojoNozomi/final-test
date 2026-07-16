@@ -193,16 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         })();
 
-        setTimeout(async () => {
-            if ('Notification' in window && Notification.permission === 'default') {
-                try {
-                    const permission = await Notification.requestPermission();
-                    if (permission === 'granted') {
-                        showNotification('已开启系统通知，收到消息时会提醒你', 'success', 3000);
-                    }
-                } catch(e) { console.warn('通知权限请求失败:', e); }
-            }
-        }, 3000);
+        // ⚠️ 删除了这里旧版的 setTimeout 静默申请通知代码
 
     } catch (err) {
         console.error('严重初始化错误:', err);
@@ -288,3 +279,56 @@ if (typeof safeGetItem === 'undefined') {
     window.safeSetItem = function(k,v) { try{localStorage.setItem(k,typeof v==='object'?JSON.stringify(v):v)}catch(e){} };
     window.safeRemoveItem = function(k) { try{localStorage.removeItem(k)}catch(e){} };
 }
+
+// 🚀 专治苹果拦截：全局推送授权唤醒大炮
+window.requestApplePushPermission = async function() {
+    const pushToggle = document.getElementById('push-notification-toggle');
+    const knob = pushToggle ? pushToggle.querySelector('.setting-pill-knob') : null;
+
+    if (!('Notification' in window)) {
+        alert('❌ 当前浏览器不支持推送通知，请确保使用 iOS 16.4+ 且已将网页添加到主屏幕。');
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        alert('✨ 推送已在后台运行！\n如需彻底关闭，请前往手机系统设置 -> Safari/此应用 里关闭通知。');
+        if (pushToggle) {
+            pushToggle.style.background = 'var(--accent-color)';
+            if(knob) knob.style.left = '23px';
+        }
+    } else if (Notification.permission === 'denied') {
+        alert('🛑 推送权限已被系统永久拒绝。\n请前往手机系统设置，找到此网页App，手动允许通知。');
+    } else {
+        // 核心：由用户的点击直接触发，苹果才会弹框！
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                if (pushToggle) {
+                    pushToggle.style.background = 'var(--accent-color)';
+                    if(knob) knob.style.left = '23px';
+                }
+                if (typeof showNotification === 'function') {
+                    showNotification('✅ 后台消息推送已成功开启！', 'success');
+                } else {
+                    alert('✅ 后台消息推送已成功开启！');
+                }
+            }
+        } catch(e) {
+            console.warn('请求推送权限出错:', e);
+        }
+    }
+};
+
+// 页面加载时，静默检查当前授权状态，并点亮开关
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const pushToggle = document.getElementById('push-notification-toggle');
+            const knob = pushToggle ? pushToggle.querySelector('.setting-pill-knob') : null;
+            if (pushToggle) {
+                pushToggle.style.background = 'var(--accent-color)';
+                if(knob) knob.style.left = '23px';
+            }
+        }
+    }, 1000);
+});
