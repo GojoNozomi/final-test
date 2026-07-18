@@ -193,8 +193,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         })();
 
-        // ⚠️ 删除了这里旧版的 setTimeout 静默申请通知代码
-
     } catch (err) {
         console.error('严重初始化错误:', err);
         updateLoader('加载遇到问题，已强制进入...', '100%');
@@ -331,4 +329,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }, 1000);
+});
+
+// 🔔 真正的系统推送引擎：拦截梦角的新消息并推送到手机通知栏
+document.addEventListener('DOMContentLoaded', () => {
+    // 设置一个定时器，确保原有的 addMessage 函数已经加载完毕
+    setTimeout(() => {
+        if (typeof window.addMessage === 'function' && !window._systemPushHooked) {
+            const originalAddMessage = window.addMessage;
+            
+            // 劫持系统的“添加消息”函数
+            window.addMessage = function(msg) {
+                // 1. 先照常把消息显示在聊天界面里
+                originalAddMessage.apply(this, arguments);
+
+                // 2. 判断是否需要触发手机横幅推送：
+                // 条件：有消息 + 消息是对方发的 + 手机锁屏或在其他App(后台) + 通知权限已开启
+                if (msg && msg.sender !== 'user' && msg.type !== 'system') {
+                    if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+                        
+                        // 提取通知显示的文字
+                        let notifBody = msg.text || '';
+                        if (msg.image) notifBody = '[图片]';
+                        if (msg.type === 'voice') notifBody = '[语音]';
+                        
+                        const partnerName = (typeof settings !== 'undefined' && settings.partnerName) ? settings.partnerName : '梦角';
+                        const notifTitle = partnerName + ' 发来了一条新消息';
+
+                        // 3. 苹果 iOS PWA 专属的高级推送通道 (Service Worker)
+                        if (navigator.serviceWorker) {
+                            navigator.serviceWorker.getRegistration().then(function(reg) {
+                                if (reg && reg.showNotification) {
+                                    // iOS 必须用这个方法才能在后台弹出横幅
+                                    reg.showNotification(notifTitle, {
+                                        body: notifBody,
+                                        icon: './apple-touch-icon.png',
+                                        tag: 'chat-message',
+                                        renotify: true
+                                    });
+                                } else {
+                                    // 备用通道
+                                    new Notification(notifTitle, { body: notifBody, icon: './apple-touch-icon.png' });
+                                }
+                            }).catch(function() {
+                                new Notification(notifTitle, { body: notifBody, icon: './apple-touch-icon.png' });
+                            });
+                        } else {
+                            // PC或安卓的普通通道
+                            new Notification(notifTitle, { body: notifBody, icon: './apple-touch-icon.png' });
+                        }
+                    }
+                }
+            };
+            window._systemPushHooked = true;
+            console.log('✅ 全局消息推送拦截器已挂载！');
+        }
+    }, 2000);
 });
