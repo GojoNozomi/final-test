@@ -47,7 +47,7 @@
         console.log("[音频核心] 所有通话铃声已完全清除并归零。");
     }
 
-    function playCallSound(type, loop = false) {
+    function playCallSound(type) {
         stopAllCallSounds(); 
         const url = localStorage.getItem(`custom_${type}_url`);
         if (!url) {
@@ -56,7 +56,8 @@
         }
         try {
             callAudioInstance = new Audio(url);
-            callAudioInstance.loop = loop;
+            // 🦊 Zero 的爆改：强制开启无限洗脑循环！
+            callAudioInstance.loop = true;
             callAudioInstance.autoplay = false; 
             callAudioInstance.play().catch(e => {
                 console.log("[音频核心] 自动播放等待交互触发:", e);
@@ -667,7 +668,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
         clearTimeout(S.outgoingTimeoutTimer);
 
         if (!isPartner) {
-            playCallSound('outgoing', true);
+            playCallSound('outgoing');
 
             // 🎲 爆改：生成 3 秒到 110 秒之间的任意随机时刻让梦角接起电话（完美适配2分钟）
             const randomPickUpDelay = 3000 + Math.random() * 107000;
@@ -690,7 +691,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
                     if (typeof showNotification === 'function')
                         showNotification(lbl, 'info', 3000);
                 }
-            }, 120000); 
+            }, 600000); 
 
         } else {
             stopAllCallSounds();
@@ -750,7 +751,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
         ov.classList.add('visible');
         clearTimeout(S.incomingTimer);
 
-        playCallSound('incoming', true);
+        playCallSound('incoming');
 
         // 来电超时上限精准保持在 5分钟 (300,000 毫秒) 
         S.incomingTimer = setTimeout(() => {
@@ -759,7 +760,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
             stopAllCallSounds(); 
             const myName = (typeof settings !== 'undefined' && settings.myName) || '我';
             sendCallEvent('fa-phone-slash', `${myName}未接听 ${getName()} 的来电`, null);
-        }, 300000); 
+        }, 600000); 
     }
 
     // ==========================================
