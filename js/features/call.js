@@ -777,7 +777,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
     }
 
     // ==========================================
-    // 15. 最小化与小窗缩放状态切换
+    // 15. 最小化与小窗缩放状态切换喵
     // ==========================================
     function minimizeWindow() {
         S.minimized = true;
